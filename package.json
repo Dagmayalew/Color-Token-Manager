@@ -1,0 +1,162 @@
+{
+  "name": "color-token-manager",
+  "displayName": "Color Token Manager",
+  "description": "Extract hardcoded colors into React Native TypeScript color tokens and manage colors.ts.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:colorTokenManager.open",
+    "onCommand:colorTokenManager.extractFromCurrentFile",
+    "onCommand:colorTokenManager.extractFromFolder",
+    "onCommand:colorTokenManager.previewFromFolder",
+    "onCommand:colorTokenManager.pickColorsFile",
+    "onCommand:colorTokenManager.refresh"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "colorTokenManager.open",
+        "title": "Open Color Token Manager"
+      },
+      {
+        "command": "colorTokenManager.extractFromCurrentFile",
+        "title": "Extract Colors From Current File"
+      },
+      {
+        "command": "colorTokenManager.extractFromFolder",
+        "title": "Extract Colors From Folder"
+      },
+      {
+        "command": "colorTokenManager.previewFromFolder",
+        "title": "Preview Colors From Folder"
+      },
+      {
+        "command": "colorTokenManager.pickColorsFile",
+        "title": "Pick Colors File"
+      },
+      {
+        "command": "colorTokenManager.refresh",
+        "title": "Refresh Color Tokens"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "colorTokenManager.previewFromFolder",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@50"
+        },
+        {
+          "command": "colorTokenManager.extractFromFolder",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@51"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Color Token Manager",
+      "properties": {
+        "colorTokenManager.colorsFilePath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom relative path to colors.ts. Example: src/theme/colors.ts"
+        },
+        "colorTokenManager.importPath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom import path for colors. If empty, calculate relative import path automatically."
+        },
+        "colorTokenManager.generatedNamePrefix": {
+          "type": "string",
+          "default": "",
+          "description": "Optional prefix for generated token names."
+        },
+        "colorTokenManager.namingStrategy": {
+          "type": "string",
+          "enum": [
+            "semantic",
+            "contextValue",
+            "valueOnly"
+          ],
+          "default": "semantic",
+          "description": "Controls generated token names. semantic can generate nested paths like button.background; contextValue includes context and color value; valueOnly uses only the color value."
+        },
+        "colorTokenManager.autoReplaceExistingColors": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, replace hardcoded colors with existing matching tokens automatically."
+        },
+        "colorTokenManager.excludeGlobs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/*.test.ts",
+            "**/*.test.tsx",
+            "**/*.spec.ts",
+            "**/*.spec.tsx",
+            "**/*.stories.ts",
+            "**/*.stories.tsx",
+            "**/__mocks__/**"
+          ],
+          "description": "Additional glob patterns to skip during folder preview and extraction."
+        },
+        "colorTokenManager.createSemanticAliases": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, create semantic alias tokens like buttonBackground: colors.primary for existing color values used in a new context."
+        },
+        "colorTokenManager.createBackupsBeforeFolderExtraction": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, write timestamped backups before folder-wide extraction applies changes."
+        },
+        "colorTokenManager.importStyle": {
+          "type": "string",
+          "enum": [
+            "named",
+            "default"
+          ],
+          "default": "named",
+          "description": "How to import colors in files that are updated."
+        },
+        "colorTokenManager.importIdentifier": {
+          "type": "string",
+          "default": "colors",
+          "description": "Identifier to use for inserted color references and imports."
+        },
+        "colorTokenManager.extractEmbeddedColors": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, also extract colors embedded inside longer quoted CSS-like strings such as boxShadow: '0 0 4px #000'."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "npm run check && npm run bundle",
+    "check": "tsc -p ./ --noEmit",
+    "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js --sourcemap",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package",
+    "vscode:prepublish": "npm run compile"
+  },
+  "dependencies": {
+    "ts-morph": "^22.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.41",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.9.1",
+    "esbuild": "^0.25.12",
+    "typescript": "^5.4.5"
+  }
+}

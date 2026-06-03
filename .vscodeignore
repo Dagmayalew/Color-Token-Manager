@@ -1,0 +1,12 @@
+node_modules
+src
+tsconfig.json
+*.map
+dist/**/*.map
+dist/colorFile.js
+dist/colorExtractor.js
+dist/importUtils.js
+dist/previewWebview.js
+dist/resultsWebview.js
+dist/types.js
+dist/webview.js
