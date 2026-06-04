@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, test } from 'node:test';
 import {
+  addColorToken,
   findExistingTokenByValue,
   getColorType,
   normalizeColorValue,
@@ -111,4 +112,24 @@ test('updateColor edits a token in a writable copy', async () => {
 
   const colors = await readColors(uri);
   assert.equal(colors.find((color) => color.key === 'primary')?.value, '#010203');
+});
+
+test('addColorToken keeps trailing-comment commas on the same property line', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-'));
+  tempDirs.push(dir);
+  const filePath = path.join(dir, 'colors.ts');
+  fs.writeFileSync(
+    filePath,
+    `export const colors = {
+  gradientDarkNavy: 'rgba(24, 40, 72, 1)', // #182848
+} as const;
+`,
+  );
+
+  const uri = vscode.Uri.file(filePath) as vscode.Uri;
+  await addColorToken(uri, 'shimmerBackground', 'rgba(255,255,255,0.4)');
+
+  const text = fs.readFileSync(filePath, 'utf8');
+  assert.equal(text.includes('\n,\n'), false);
+  assert.match(text, /gradientDarkNavy: 'rgba\(24, 40, 72, 1\)', \/\/ #182848\n  shimmerBackground: 'rgba\(255,255,255,0\.4\)',/);
 });

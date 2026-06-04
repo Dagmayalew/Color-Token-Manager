@@ -740,14 +740,39 @@ function insertProperty(
 ): string {
   const objectIndent = getLineIndent(text, objectLiteral.start);
   const propertyIndent = `${objectIndent}  `;
-  const lastContentIndex = findPreviousNonWhitespace(text, objectLiteral.end - 1);
-  const needsComma =
-    objectLiteral.properties.length > 0 &&
-    lastContentIndex !== -1 &&
-    text[lastContentIndex] !== ',';
+  const insertAt = trimRight(text, objectLiteral.end);
+  const lastProperty = objectLiteral.properties.at(-1);
+  const needsComma = Boolean(
+    lastProperty && !hasTrailingCommaAfterProperty(text, lastProperty, insertAt),
+  );
   const propertyText = `${needsComma ? ',' : ''}\n${propertyIndent}${formatPropertyName(key)}: ${indentInitializer(initializer, propertyIndent)},\n${objectIndent}`;
 
-  return `${text.slice(0, objectLiteral.end)}${propertyText}${text.slice(objectLiteral.end)}`;
+  return `${text.slice(0, insertAt)}${propertyText}${text.slice(insertAt)}`;
+}
+
+function hasTrailingCommaAfterProperty(text: string, property: ParsedProperty, end: number): boolean {
+  let index = property.propertyEnd;
+
+  while (index < end) {
+    const char = text[index];
+    if (char === ',') {
+      return true;
+    }
+
+    if (/\s/.test(char)) {
+      index++;
+      continue;
+    }
+
+    if (char === '/' && (text[index + 1] === '/' || text[index + 1] === '*')) {
+      index = skipComment(text, index);
+      continue;
+    }
+
+    return false;
+  }
+
+  return false;
 }
 
 function createNestedInitializer(
@@ -869,18 +894,6 @@ function trimRight(text: string, end: number): number {
     index--;
   }
   return index;
-}
-
-function findPreviousNonWhitespace(text: string, start: number): number {
-  let index = start;
-  while (index >= 0) {
-    if (!/\s/.test(text[index])) {
-      return index;
-    }
-    index--;
-  }
-
-  return -1;
 }
 
 function normalizeHex(value: string): string {

@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Multi-root workspaces: resolve `colorsFilePath` and default dialogs from the active editor’s workspace folder (not always the first root).
 - Flat token projects: generated semantic suggestions now stay flat/reuse existing flat tokens, preventing invalid references like `colors.text.black` when `colors.ts` only exposes `colors.black`.
+- `colors.ts` writer: adding a token after a trailing inline comment no longer creates a standalone comma line.
 
 ## [0.0.2] - 2026-06-04
 
