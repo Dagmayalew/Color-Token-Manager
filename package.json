@@ -2,7 +2,7 @@
   "name": "color-token-manager",
   "displayName": "Color Token Manager",
   "description": "Extract hardcoded colors into tokens, manage colors.ts, preview refactors, WCAG contrast checks, and export design tokens for React Native and TypeScript.",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "dagmayalew",
   "license": "MIT",
   "pricing": "Free",
