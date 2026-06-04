@@ -202,6 +202,16 @@
           "default": "semantic",
           "description": "Controls generated token names. semantic can generate nested paths like button.background; contextValue includes context and color value; valueOnly uses only the color value."
         },
+        "colorTokenManager.tokenPathMode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "flat",
+            "nested"
+          ],
+          "default": "auto",
+          "description": "Controls whether generated token references are flat or nested. auto matches the existing colors.ts shape so flat projects do not receive colors.text.black references."
+        },
         "colorTokenManager.autoReplaceExistingColors": {
           "type": "boolean",
           "default": true,

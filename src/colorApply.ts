@@ -14,6 +14,7 @@ import {
   buildPreviewForDocument,
   createPreviewPlanner,
   ensurePreviewToken,
+  getProjectTokenName,
   getRangeKey,
   getUniqueTokenName,
   shouldCreateAlias,
@@ -66,6 +67,7 @@ export async function replaceColorsInDocument(
   }
 
   for (const extracted of extractedColors) {
+    const suggestedName = getProjectTokenName(extracted.suggestedName, existingColors);
     const normalized = normalizeColorValue(extracted.value);
     const existingToken =
       tokenByNormalizedValue.get(normalized) ??
@@ -75,9 +77,9 @@ export async function replaceColorsInDocument(
       if (autoReplaceExistingColors) {
         if (
           createAliases &&
-          shouldCreateAlias(existingToken, extracted.suggestedName, knownTokenNames)
+          shouldCreateAlias(existingToken, suggestedName, knownTokenNames, existingColors)
         ) {
-          const aliasName = getUniqueTokenName(extracted.suggestedName, knownTokenNames);
+          const aliasName = getUniqueTokenName(suggestedName, knownTokenNames);
           await addColorAlias(colorsFileUri, aliasName, existingToken);
           existingColors = await readColors(colorsFileUri);
           knownTokenNames.add(aliasName);
@@ -93,7 +95,7 @@ export async function replaceColorsInDocument(
       continue;
     }
 
-    const tokenName = getUniqueTokenName(extracted.suggestedName, knownTokenNames);
+    const tokenName = getUniqueTokenName(suggestedName, knownTokenNames);
     await addGeneratedColorToken(colorsFileUri, tokenName, extracted.value, knownTokenNames);
     existingColors = await readColors(colorsFileUri);
     knownTokenNames.add(tokenName);

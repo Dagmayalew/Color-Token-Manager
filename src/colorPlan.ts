@@ -116,6 +116,7 @@ export function buildPreviewForDocument(
   const replacements: FileExtractionPreview['replacements'] = [];
 
   for (const extracted of extractedColors) {
+    const suggestedName = getProjectTokenName(extracted.suggestedName, planner.existingColors);
     const normalized = normalizeColorValue(extracted.value);
     const existingToken =
       planner.tokenByNormalizedValue.get(normalized) ??
@@ -125,9 +126,9 @@ export function buildPreviewForDocument(
       if (autoReplaceExistingColors) {
         if (
           createAliases &&
-          shouldCreateAlias(existingToken, extracted.suggestedName, planner.knownTokenNames)
+          shouldCreateAlias(existingToken, suggestedName, planner.knownTokenNames, planner.existingColors)
         ) {
-          const tokenName = getUniqueTokenName(extracted.suggestedName, planner.knownTokenNames);
+          const tokenName = getUniqueTokenName(suggestedName, planner.knownTokenNames);
           planner.knownTokenNames.add(tokenName);
           planner.tokenByNormalizedValue.set(normalized, tokenName);
           replacements.push({
@@ -162,7 +163,7 @@ export function buildPreviewForDocument(
       continue;
     }
 
-    const tokenName = getUniqueTokenName(extracted.suggestedName, planner.knownTokenNames);
+    const tokenName = getUniqueTokenName(suggestedName, planner.knownTokenNames);
     planner.knownTokenNames.add(tokenName);
     planner.tokenByNormalizedValue.set(normalized, tokenName);
     replacements.push({
@@ -251,6 +252,26 @@ export async function addGeneratedColorToken(
   await addColorToken(colorsFileUri, primitiveName, value);
   knownTokenNames.add(primitiveName);
   await addColorAlias(colorsFileUri, tokenName, primitiveName);
+}
+
+export function getProjectTokenName(suggestedName: string, existingColors: AppColor[]): string {
+  return shouldUseNestedTokenPaths(existingColors) ? suggestedName : flattenTokenPath(suggestedName);
+}
+
+export function shouldUseNestedTokenPaths(existingColors: AppColor[]): boolean {
+  const configuration = vscode.workspace.getConfiguration('colorTokenManager');
+  const tokenPathMode = configuration.get<'auto' | 'flat' | 'nested'>('tokenPathMode', 'auto');
+  if (tokenPathMode === 'flat') {
+    return false;
+  }
+
+  if (tokenPathMode === 'nested') {
+    return true;
+  }
+
+  const tokenLayerMode = configuration.get<'flat' | 'semanticFirst'>('tokenLayerMode', 'flat');
+  const themePrefix = configuration.get<string>('themeTokenPrefix', '').trim();
+  return tokenLayerMode === 'semanticFirst' || Boolean(themePrefix) || existingColors.some((color) => color.key.includes('.'));
 }
 
 function shouldUsePrimitiveSemanticLayer(tokenName: string): boolean {
@@ -439,12 +460,28 @@ export function shouldCreateAlias(
   existingToken: string,
   suggestedName: string,
   knownTokenNames: Set<string>,
+  existingColors: AppColor[] = [],
 ): boolean {
+  if (!shouldUseNestedTokenPaths(existingColors)) {
+    return false;
+  }
+
   if (existingToken === suggestedName || knownTokenNames.has(suggestedName)) {
     return false;
   }
 
   return /[A-Z.]/.test(suggestedName);
+}
+
+function flattenTokenPath(tokenPath: string): string {
+  const parts = tokenPath.split('.').filter(Boolean);
+  if (parts.length <= 1) {
+    return tokenPath;
+  }
+
+  return sanitizeTokenName(
+    parts.map((part, index) => (index === 0 ? part : capitalize(part))).join(''),
+  );
 }
 
 export function getUniqueTokenName(baseName: string, existingNames: Set<string>): string {

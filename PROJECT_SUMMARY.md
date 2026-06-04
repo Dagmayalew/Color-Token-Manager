@@ -103,6 +103,8 @@ Follow [VERSIONING.md](VERSIONING.md), then:
 
 All defaults live in `package.json` under `contributes.configuration`. For a copy-pastable JSON block, see README sections and the Settings UI (**Color Token Manager**).
 
+Important compatibility setting: `colorTokenManager.tokenPathMode` defaults to `auto`, so flat `colors.ts` files keep flat references like `colors.black` / `colors.textBlack` instead of receiving nested references like `colors.text.black`.
+
 Deprecations: [DEPRECATIONS.md](DEPRECATIONS.md) (`importStyle` → `importMode`, removal in v1.0.0).
 
 ## Roadmap (repo hygiene)

@@ -43,10 +43,19 @@ In `colors.ts`, text-like tokens such as `text.muted` are checked against backgr
 
 ## Primitive And Semantic Layers
 
-By default, generated tokens stay flat or semantic based on context:
+By default, `colorTokenManager.tokenPathMode` is `auto`: flat `colors.ts` files keep flat references, while nested token files keep nested references.
 
 ```ts
+colors.black;
+colors.textBlack;
 colors.button.background;
+```
+
+Set it explicitly when needed:
+
+```json
+"colorTokenManager.tokenPathMode": "flat"
+"colorTokenManager.tokenPathMode": "nested"
 ```
 
 For design-system workflows, enable semantic-first mode:

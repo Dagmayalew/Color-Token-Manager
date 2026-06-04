@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 import { extractHardcodedColorsFromText } from '../src/colorExtractor';
+import { getProjectTokenName, shouldCreateAlias } from '../src/colorPlan';
 import { getReplacementText } from '../src/colorScan';
+import type { AppColor } from '../src/types';
 import { resetColorTokenManagerConfig, setColorTokenManagerConfig } from './helpers/config';
 
 beforeEach(() => {
@@ -145,4 +147,20 @@ test('getReplacementText returns css variables for css literals', () => {
 
   assert.equal(getReplacementText(color, 'button.background'), 'var(--color-button-background)');
   assert.equal(getReplacementText(color, 'primaryOrange'), 'var(--color-primary-orange)');
+});
+
+test('flat color projects do not receive nested semantic token paths', () => {
+  const existingColors: AppColor[] = [{ key: 'black', value: '#000000', type: 'hex' }];
+
+  assert.equal(getProjectTokenName('text.black', existingColors), 'textBlack');
+  assert.equal(shouldCreateAlias('black', 'textBlack', new Set(['black']), existingColors), false);
+});
+
+test('nested color projects keep nested semantic token paths', () => {
+  const existingColors: AppColor[] = [
+    { key: 'background.white', value: '#FFFFFF', type: 'hex' },
+  ];
+
+  assert.equal(getProjectTokenName('text.black', existingColors), 'text.black');
+  assert.equal(shouldCreateAlias('black', 'text.black', new Set(['black']), existingColors), true);
 });
