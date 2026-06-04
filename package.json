@@ -26,11 +26,19 @@
     "Other"
   ],
   "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
     "onCommand:colorTokenManager.open",
     "onCommand:colorTokenManager.extractFromCurrentFile",
     "onCommand:colorTokenManager.extractFromFolder",
     "onCommand:colorTokenManager.previewFromFolder",
     "onCommand:colorTokenManager.previewFromSelection",
+    "onCommand:colorTokenManager.previewColorAtRange",
+    "onCommand:colorTokenManager.renameToken",
+    "onCommand:colorTokenManager.findUnusedTokens",
+    "onCommand:colorTokenManager.exportTokens",
     "onCommand:colorTokenManager.pickColorsFile",
     "onCommand:colorTokenManager.refresh"
   ],
@@ -56,6 +64,18 @@
       {
         "command": "colorTokenManager.previewFromSelection",
         "title": "Preview Colors From Selection"
+      },
+      {
+        "command": "colorTokenManager.renameToken",
+        "title": "Rename Color Token"
+      },
+      {
+        "command": "colorTokenManager.findUnusedTokens",
+        "title": "Find Unused Color Tokens"
+      },
+      {
+        "command": "colorTokenManager.exportTokens",
+        "title": "Export Design Tokens"
       },
       {
         "command": "colorTokenManager.pickColorsFile",

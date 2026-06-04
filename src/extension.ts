@@ -10,8 +10,10 @@ import {
   SelectionPreviewTarget
 } from './colorExtractor';
 import { getConfiguredColorsFile, pickColorsFile, readColors, updateColor, validateColorValue } from './colorFile';
+import { registerColorDiagnostics } from './diagnostics';
 import { getPreviewWebviewHtml } from './previewWebview';
 import { getResultsWebviewHtml } from './resultsWebview';
+import { exportDesignTokens, renameTokenAcrossProject, showUnusedTokens } from './tokenTools';
 import { AppColor, FolderApplyResult, FolderExtractionPreview } from './types';
 import { getWebviewHtml } from './webview';
 
@@ -25,6 +27,7 @@ let lastFolderPreview: FolderExtractionPreview | undefined;
 let watcher: vscode.FileSystemWatcher | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
+  registerColorDiagnostics(context);
   rememberExtractionTarget(vscode.window.activeTextEditor);
   rememberSelectionTarget(vscode.window.activeTextEditor);
 
@@ -88,6 +91,41 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
+  const previewColorAtRangeDisposable = vscode.commands.registerCommand('colorTokenManager.previewColorAtRange', async (target: SelectionPreviewTarget) => {
+    try {
+      await openSelectionPreview(context, target);
+    } catch (error) {
+      showError(error);
+    }
+  });
+
+  const renameTokenDisposable = vscode.commands.registerCommand('colorTokenManager.renameToken', async () => {
+    try {
+      await renameTokenAcrossProject();
+      if (selectedFile) {
+        await refreshWebview(selectedFile, 'Renamed token across project.');
+      }
+    } catch (error) {
+      showError(error);
+    }
+  });
+
+  const unusedTokensDisposable = vscode.commands.registerCommand('colorTokenManager.findUnusedTokens', async () => {
+    try {
+      await showUnusedTokens();
+    } catch (error) {
+      showError(error);
+    }
+  });
+
+  const exportTokensDisposable = vscode.commands.registerCommand('colorTokenManager.exportTokens', async () => {
+    try {
+      await exportDesignTokens();
+    } catch (error) {
+      showError(error);
+    }
+  });
+
   const pickDisposable = vscode.commands.registerCommand('colorTokenManager.pickColorsFile', async () => {
     try {
       await handlePickFileAgain(context);
@@ -121,6 +159,10 @@ export function activate(context: vscode.ExtensionContext): void {
     extractFolderDisposable,
     previewFolderDisposable,
     previewSelectionDisposable,
+    previewColorAtRangeDisposable,
+    renameTokenDisposable,
+    unusedTokensDisposable,
+    exportTokensDisposable,
     pickDisposable,
     refreshDisposable
   );
@@ -194,6 +236,16 @@ async function handleWebviewMessage(message: { type?: string; key?: string; valu
       case 'previewFromSelection':
         await openSelectionPreview();
         break;
+      case 'renameToken':
+        await renameTokenAcrossProject();
+        await refreshWebview(selectedFile, 'Renamed token across project.');
+        break;
+      case 'findUnusedTokens':
+        await showUnusedTokens();
+        break;
+      case 'exportTokens':
+        await exportDesignTokens();
+        break;
       default:
         break;
     }
@@ -203,8 +255,8 @@ async function handleWebviewMessage(message: { type?: string; key?: string; valu
   }
 }
 
-async function openSelectionPreview(context?: vscode.ExtensionContext): Promise<void> {
-  const preview = await previewColorsFromSelection(lastSelectionTarget);
+async function openSelectionPreview(context?: vscode.ExtensionContext, target?: SelectionPreviewTarget): Promise<void> {
+  const preview = await previewColorsFromSelection(target ?? lastSelectionTarget);
   if (!preview) {
     return;
   }

@@ -185,6 +185,9 @@ export function getWebviewHtml(
       <button id="previewSelection" type="button">Preview Selection</button>
       <button id="previewFolder" type="button">Preview Folder</button>
       <button id="extractFolder" type="button">Extract From Folder</button>
+      <button id="renameToken" type="button">Rename Token</button>
+      <button id="unusedTokens" type="button">Find Unused</button>
+      <button id="exportTokens" type="button">Export Tokens</button>
       <button id="pickFileAgain" type="button">Pick File Again</button>
       <button id="refresh" type="button">Refresh</button>
     </div>
@@ -227,6 +230,18 @@ export function getWebviewHtml(
 
     document.getElementById('previewSelection').addEventListener('click', () => {
       vscode.postMessage({ type: 'previewFromSelection' });
+    });
+
+    document.getElementById('renameToken').addEventListener('click', () => {
+      vscode.postMessage({ type: 'renameToken' });
+    });
+
+    document.getElementById('unusedTokens').addEventListener('click', () => {
+      vscode.postMessage({ type: 'findUnusedTokens' });
+    });
+
+    document.getElementById('exportTokens').addEventListener('click', () => {
+      vscode.postMessage({ type: 'exportTokens' });
     });
 
     search.addEventListener('input', render);
