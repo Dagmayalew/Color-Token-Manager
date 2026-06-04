@@ -1,28 +1,45 @@
 {
   "name": "color-token-manager",
   "displayName": "Color Token Manager",
-  "description": "Extract hardcoded colors into React Native TypeScript color tokens and manage colors.ts.",
-  "version": "0.0.1",
+  "description": "Extract hardcoded colors into tokens, manage colors.ts, preview refactors, WCAG contrast checks, and export design tokens for React Native and TypeScript.",
+  "version": "0.0.2",
   "publisher": "dagmayalew",
+  "license": "MIT",
+  "pricing": "Free",
+  "homepage": "https://github.com/dagmayalew489/color-token-manager#readme",
+  "bugs": {
+    "url": "https://github.com/dagmayalew489/color-token-manager/issues"
+  },
+  "qna": "marketplace",
   "repository": {
     "type": "git",
     "url": "https://github.com/dagmayalew489/color-token-manager"
   },
   "keywords": [
+    "color",
     "colors",
     "theme",
+    "design tokens",
     "tokens",
     "react-native",
     "typescript",
+    "javascript",
     "design-system",
+    "wcag",
+    "accessibility",
+    "refactor",
     "color-manager"
   ],
-  "license": "MIT",
   "icon": "resources/icon.png",
+  "galleryBanner": {
+    "color": "#1a1a2e",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
+    "Linters",
     "Other"
   ],
   "activationEvents": [
@@ -30,17 +47,11 @@
     "onLanguage:typescriptreact",
     "onLanguage:javascript",
     "onLanguage:javascriptreact",
-    "onCommand:colorTokenManager.open",
-    "onCommand:colorTokenManager.extractFromCurrentFile",
-    "onCommand:colorTokenManager.extractFromFolder",
-    "onCommand:colorTokenManager.previewFromFolder",
-    "onCommand:colorTokenManager.previewFromSelection",
-    "onCommand:colorTokenManager.previewColorAtRange",
-    "onCommand:colorTokenManager.renameToken",
-    "onCommand:colorTokenManager.findUnusedTokens",
-    "onCommand:colorTokenManager.exportTokens",
-    "onCommand:colorTokenManager.pickColorsFile",
-    "onCommand:colorTokenManager.refresh"
+    "onLanguage:vue",
+    "onLanguage:css",
+    "onLanguage:scss",
+    "onLanguage:less",
+    "workspaceContains:**/colors.ts"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -87,6 +98,60 @@
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "colorTokenManager.open",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less"
+        },
+        {
+          "command": "colorTokenManager.extractFromCurrentFile",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less"
+        },
+        {
+          "command": "colorTokenManager.extractFromFolder",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less"
+        },
+        {
+          "command": "colorTokenManager.previewFromFolder",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less"
+        },
+        {
+          "command": "colorTokenManager.previewFromSelection",
+          "when": "editorHasSelection && (editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less)"
+        },
+        {
+          "command": "colorTokenManager.renameToken",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less"
+        },
+        {
+          "command": "colorTokenManager.findUnusedTokens",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less"
+        },
+        {
+          "command": "colorTokenManager.exportTokens",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less"
+        },
+        {
+          "command": "colorTokenManager.pickColorsFile",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less"
+        },
+        {
+          "command": "colorTokenManager.refresh",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "colorTokenManager.previewFromSelection",
+          "when": "editorHasSelection && (editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less)",
+          "group": "navigation@50"
+        },
+        {
+          "command": "colorTokenManager.extractFromCurrentFile",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less",
+          "group": "navigation@51"
+        }
+      ],
       "explorer/context": [
         {
           "command": "colorTokenManager.previewFromFolder",
@@ -95,13 +160,27 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "colorTokenManager.open",
+        "key": "ctrl+alt+shift+c",
+        "mac": "cmd+alt+shift+c",
+        "when": "editorTextFocus && (editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less)"
+      },
+      {
+        "command": "colorTokenManager.previewFromSelection",
+        "key": "ctrl+alt+shift+p",
+        "mac": "cmd+alt+shift+p",
+        "when": "editorTextFocus && editorHasSelection && (editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less)"
+      }
+    ],
     "configuration": {
       "title": "Color Token Manager",
       "properties": {
         "colorTokenManager.colorsFilePath": {
           "type": "string",
           "default": "",
-          "description": "Custom relative path to colors.ts. Example: src/theme/colors.ts"
+          "description": "Custom path to colors.ts, relative to the workspace folder of the active file (multi-root safe). Example: src/theme/colors.ts"
         },
         "colorTokenManager.importPath": {
           "type": "string",
@@ -160,6 +239,47 @@
           "default": true,
           "description": "When true, write timestamped backups before folder-wide extraction applies changes."
         },
+        "colorTokenManager.enableInlineSwatches": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, show inline color swatches next to hardcoded colors in supported source files."
+        },
+        "colorTokenManager.enableContrastDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, warn in colors.ts when text-like tokens do not meet the configured WCAG contrast target against background tokens."
+        },
+        "colorTokenManager.contrastLevel": {
+          "type": "string",
+          "enum": [
+            "AA",
+            "AAA"
+          ],
+          "default": "AA",
+          "description": "WCAG contrast level used by color token diagnostics. AA requires 4.5:1 and AAA requires 7:1 for normal text."
+        },
+        "colorTokenManager.contrastBackgroundTokens": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Optional token keys to use as contrast backgrounds, such as background.white. If empty, background-like tokens are detected automatically."
+        },
+        "colorTokenManager.tokenLayerMode": {
+          "type": "string",
+          "enum": [
+            "flat",
+            "semanticFirst"
+          ],
+          "default": "flat",
+          "description": "When semanticFirst, new extracted colors create primitive tokens and semantic aliases, such as primitive.gray.gray500 and semantic.text.muted."
+        },
+        "colorTokenManager.themeTokenPrefix": {
+          "type": "string",
+          "default": "",
+          "description": "Optional theme prefix for generated semantic token paths. Example: dark creates colors.dark.background.primary in flat mode or colors.semantic.dark.background.primary in semantic-first mode."
+        },
         "colorTokenManager.importStyle": {
           "type": "string",
           "enum": [
@@ -167,7 +287,8 @@
             "default"
           ],
           "default": "named",
-          "description": "Deprecated. Use colorTokenManager.importMode instead."
+          "description": "Deprecated. Use colorTokenManager.importMode instead. Removed in v1.0.0.",
+          "deprecationMessage": "Use colorTokenManager.importMode instead. This setting will be removed in v1.0.0."
         },
         "colorTokenManager.importMode": {
           "type": "string",
@@ -193,22 +314,36 @@
     }
   },
   "scripts": {
-    "clean": "rm -rf dist *.vsix",
+    "clean": "rm -rf dist out-test *.vsix",
     "compile": "npm run check && npm run bundle",
     "check": "tsc -p ./ --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "test": "npm run test:compile && npm run test:run",
+    "test:compile": "tsc -p tsconfig.test.json",
+    "test:run": "node --require ./test/setup.cjs --test out-test/test/smoke.test.js out-test/test/colorFile.test.js out-test/test/colorExtractor.test.js out-test/test/globUtils.test.js out-test/test/workspaceUtils.test.js",
+    "test:integration": "npm run compile && npm run test:integration:compile && node ./out-test/test/runTest.js",
+    "test:integration:compile": "tsc -p tsconfig.integration.json",
     "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js --minify",
     "watch": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js --watch",
     "package": "vsce package",
     "vscode:prepublish": "npm run compile"
   },
-  "dependencies": {
-    "ts-morph": "^22.0.0"
-  },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
     "@types/node": "^20.19.41",
+    "@types/mocha": "^10.0.10",
     "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.9.1",
     "esbuild": "^0.25.12",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "mocha": "^11.7.5",
+    "prettier": "^3.6.2",
+    "typescript-eslint": "^8.46.4",
     "typescript": "^5.4.5"
   }
 }

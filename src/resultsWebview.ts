@@ -1,4 +1,4 @@
-import { FolderApplyResult } from './types';
+import { type FolderApplyResult } from './types';
 
 export function getResultsWebviewHtml(result: FolderApplyResult): string {
   const nonce = getNonce();

@@ -1,14 +1,17 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { getConfiguredColorsFile, readColors, renameColorToken } from './colorFile';
+import { getDefaultDialogUri } from './workspaceUtils';
+import { globToRegExp } from './globUtils';
 import { getColorsIdentifier } from './importUtils';
-import { AppColor } from './types';
+import { type AppColor } from './types';
 
 const SOURCE_GLOB = '**/*.{ts,tsx,js,jsx}';
-const DEFAULT_EXCLUDE = '{**/node_modules/**,**/dist/**,**/build/**,**/coverage/**,**/ios/**,**/android/**}';
+const DEFAULT_EXCLUDE =
+  '{**/node_modules/**,**/dist/**,**/build/**,**/coverage/**,**/ios/**,**/android/**}';
 
 export async function renameTokenAcrossProject(): Promise<void> {
-  const colorsFileUri = await getConfiguredColorsFile();
+  const colorsFileUri = await getConfiguredColorsFile(vscode.window.activeTextEditor?.document.uri);
   if (!colorsFileUri) {
     return;
   }
@@ -22,9 +25,9 @@ export async function renameTokenAcrossProject(): Promise<void> {
   const oldItem = await vscode.window.showQuickPick(
     colors.map((color) => ({
       label: color.key,
-      description: color.value
+      description: color.value,
     })),
-    { placeHolder: 'Choose a token to rename' }
+    { placeHolder: 'Choose a token to rename' },
   );
   if (!oldItem) {
     return;
@@ -33,7 +36,7 @@ export async function renameTokenAcrossProject(): Promise<void> {
   const newKey = await vscode.window.showInputBox({
     prompt: `Rename colors.${oldItem.label} to`,
     value: oldItem.label,
-    validateInput: validateTokenPath
+    validateInput: validateTokenPath,
   });
   if (!newKey || newKey === oldItem.label) {
     return;
@@ -58,7 +61,7 @@ export async function renameTokenAcrossProject(): Promise<void> {
       edit.replace(
         document.uri,
         new vscode.Range(document.positionAt(match.start), document.positionAt(match.end)),
-        `${match.identifier}.${newKey}`
+        `${match.identifier}.${newKey}`,
       );
     }
   }
@@ -69,11 +72,13 @@ export async function renameTokenAcrossProject(): Promise<void> {
   }
 
   await saveDocuments(changedDocuments);
-  vscode.window.showInformationMessage(`Renamed colors.${oldItem.label} to colors.${newKey} in ${changedDocuments.length} files.`);
+  vscode.window.showInformationMessage(
+    `Renamed colors.${oldItem.label} to colors.${newKey} in ${changedDocuments.length} files.`,
+  );
 }
 
 export async function showUnusedTokens(): Promise<void> {
-  const colorsFileUri = await getConfiguredColorsFile();
+  const colorsFileUri = await getConfiguredColorsFile(vscode.window.activeTextEditor?.document.uri);
   if (!colorsFileUri) {
     return;
   }
@@ -98,7 +103,7 @@ export async function showUnusedTokens(): Promise<void> {
 }
 
 export async function exportDesignTokens(): Promise<void> {
-  const colorsFileUri = await getConfiguredColorsFile();
+  const colorsFileUri = await getConfiguredColorsFile(vscode.window.activeTextEditor?.document.uri);
   if (!colorsFileUri) {
     return;
   }
@@ -114,23 +119,24 @@ export async function exportDesignTokens(): Promise<void> {
       { label: 'JSON', extension: 'json' },
       { label: 'CSS Variables', extension: 'css' },
       { label: 'Tailwind Config', extension: 'js' },
-      { label: 'Figma Tokens', extension: 'json' }
+      { label: 'Figma Tokens', extension: 'json' },
+      { label: 'W3C Design Tokens', extension: 'json' },
     ],
-    { placeHolder: 'Choose export format' }
+    { placeHolder: 'Choose export format' },
   );
   if (!format) {
     return;
   }
 
   const defaultUri = vscode.Uri.joinPath(
-    vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.file(path.dirname(colorsFileUri.fsPath)),
-    `color-tokens.${format.extension}`
+    getDefaultDialogUri(colorsFileUri) ?? vscode.Uri.file(path.dirname(colorsFileUri.fsPath)),
+    `color-tokens.${format.extension}`,
   );
   const targetUri = await vscode.window.showSaveDialog({
     defaultUri,
     filters: {
-      [format.label]: [format.extension]
-    }
+      [format.label]: [format.extension],
+    },
   });
   if (!targetUri) {
     return;
@@ -138,7 +144,9 @@ export async function exportDesignTokens(): Promise<void> {
 
   const content = serializeTokens(colors, format.label);
   await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
-  vscode.window.showInformationMessage(`Exported ${colors.length} color tokens to ${vscode.workspace.asRelativePath(targetUri)}.`);
+  vscode.window.showInformationMessage(
+    `Exported ${colors.length} color tokens to ${vscode.workspace.asRelativePath(targetUri)}.`,
+  );
 }
 
 function serializeTokens(colors: AppColor[], format: string): string {
@@ -151,7 +159,11 @@ function serializeTokens(colors: AppColor[], format: string): string {
   }
 
   if (format === 'Figma Tokens') {
-    return JSON.stringify(toFigmaTokens(colors), null, 2) + '\n';
+    return JSON.stringify(toReferenceTokens(colors, 'figma'), null, 2) + '\n';
+  }
+
+  if (format === 'W3C Design Tokens') {
+    return JSON.stringify(toReferenceTokens(colors, 'w3c'), null, 2) + '\n';
   }
 
   return JSON.stringify(toNestedObject(colors), null, 2) + '\n';
@@ -165,13 +177,15 @@ function toNestedObject(colors: AppColor[]): Record<string, unknown> {
   return root;
 }
 
-function toFigmaTokens(colors: AppColor[]): Record<string, unknown> {
+function toReferenceTokens(colors: AppColor[], format: 'figma' | 'w3c'): Record<string, unknown> {
   const root: Record<string, unknown> = {};
   for (const color of colors) {
-    setNestedValue(root, color.key, {
-      value: color.value,
-      type: 'color'
-    });
+    const value = color.aliasOf ? `{${color.aliasOf}}` : color.value;
+    setNestedValue(
+      root,
+      color.key,
+      format === 'w3c' ? { $value: value, $type: 'color' } : { value, type: 'color' },
+    );
   }
   return root;
 }
@@ -210,7 +224,10 @@ async function findProjectSourceFiles(colorsFileUri: vscode.Uri): Promise<vscode
   });
 }
 
-function findTokenReferences(text: string, tokenKey: string): Array<{ start: number; end: number; identifier: string }> {
+function findTokenReferences(
+  text: string,
+  tokenKey: string,
+): Array<{ start: number; end: number; identifier: string }> {
   const identifiers = Array.from(new Set(['colors', getColorsIdentifier()]));
   const references: Array<{ start: number; end: number; identifier: string }> = [];
 
@@ -222,7 +239,7 @@ function findTokenReferences(text: string, tokenKey: string): Array<{ start: num
       references.push({
         start: match.index,
         end: match.index + match[0].length,
-        identifier
+        identifier,
       });
     }
   }
@@ -230,14 +247,18 @@ function findTokenReferences(text: string, tokenKey: string): Array<{ start: num
   return references;
 }
 
-function buildUnusedTokenReport(colorsFileUri: vscode.Uri, unused: AppColor[], total: number): string {
+function buildUnusedTokenReport(
+  colorsFileUri: vscode.Uri,
+  unused: AppColor[],
+  total: number,
+): string {
   const lines = [
     '# Unused Color Tokens',
     '',
     `Colors file: \`${vscode.workspace.asRelativePath(colorsFileUri)}\``,
     `Total tokens: ${total}`,
     `Unused tokens: ${unused.length}`,
-    ''
+    '',
   ];
 
   if (!unused.length) {
@@ -262,16 +283,6 @@ function validateTokenPath(value: string): string | undefined {
   return /^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(value)
     ? undefined
     : 'Use a token path like primary or button.background.';
-}
-
-function globToRegExp(glob: string): RegExp {
-  const escaped = glob
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*\*/g, '::DOUBLE_STAR::')
-    .replace(/\*/g, '[^/]*')
-    .replace(/::DOUBLE_STAR::/g, '.*');
-
-  return new RegExp(`^${escaped}$`);
 }
 
 function escapeRegExp(value: string): string {

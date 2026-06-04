@@ -7,14 +7,21 @@ import {
   isSupportedExtractionDocument,
   previewColorsFromFolder,
   previewColorsFromSelection,
-  SelectionPreviewTarget
+  type SelectionPreviewTarget,
 } from './colorExtractor';
-import { getConfiguredColorsFile, pickColorsFile, readColors, updateColor, validateColorValue } from './colorFile';
+import {
+  getConfiguredColorsFile,
+  pickColorsFile,
+  readColors,
+  updateColor,
+  validateColorValue,
+} from './colorFile';
+import { warnDeprecatedImportStyleIfNeeded } from './importUtils';
 import { registerColorDiagnostics } from './diagnostics';
 import { getPreviewWebviewHtml } from './previewWebview';
 import { getResultsWebviewHtml } from './resultsWebview';
 import { exportDesignTokens, renameTokenAcrossProject, showUnusedTokens } from './tokenTools';
-import { AppColor, FolderApplyResult, FolderExtractionPreview } from './types';
+import { type AppColor, type FolderApplyResult, type FolderExtractionPreview } from './types';
 import { getWebviewHtml } from './webview';
 
 let panel: vscode.WebviewPanel | undefined;
@@ -27,6 +34,7 @@ let lastFolderPreview: FolderExtractionPreview | undefined;
 let watcher: vscode.FileSystemWatcher | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
+  warnDeprecatedImportStyleIfNeeded(context);
   registerColorDiagnostics(context);
   rememberExtractionTarget(vscode.window.activeTextEditor);
   rememberSelectionTarget(vscode.window.activeTextEditor);
@@ -40,7 +48,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const openDisposable = vscode.commands.registerCommand('colorTokenManager.open', async () => {
     try {
-      const fileUri = await getConfiguredColorsFile();
+      const fileUri = await getConfiguredColorsFile(vscode.window.activeTextEditor?.document.uri);
       if (!fileUri) {
         return;
       }
@@ -53,103 +61,135 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
-  const extractDisposable = vscode.commands.registerCommand('colorTokenManager.extractFromCurrentFile', async () => {
-    try {
-      await extractColorsFromCurrentFile(lastExtractionTarget);
-      if (selectedFile) {
-        await refreshWebview(selectedFile, 'Extracted colors from current file.');
-      }
-    } catch (error) {
-      showError(error);
-    }
-  });
-
-  const extractFolderDisposable = vscode.commands.registerCommand('colorTokenManager.extractFromFolder', async (folderUri?: vscode.Uri) => {
-    try {
-      await extractColorsFromFolder(folderUri);
-      if (selectedFile) {
-        await refreshWebview(selectedFile, 'Extracted colors from folder.');
-      }
-    } catch (error) {
-      showError(error);
-    }
-  });
-
-  const previewFolderDisposable = vscode.commands.registerCommand('colorTokenManager.previewFromFolder', async (folderUri?: vscode.Uri) => {
-    try {
-      await openFolderPreview(context, folderUri);
-    } catch (error) {
-      showError(error);
-    }
-  });
-
-  const previewSelectionDisposable = vscode.commands.registerCommand('colorTokenManager.previewFromSelection', async () => {
-    try {
-      await openSelectionPreview(context);
-    } catch (error) {
-      showError(error);
-    }
-  });
-
-  const previewColorAtRangeDisposable = vscode.commands.registerCommand('colorTokenManager.previewColorAtRange', async (target: SelectionPreviewTarget) => {
-    try {
-      await openSelectionPreview(context, target);
-    } catch (error) {
-      showError(error);
-    }
-  });
-
-  const renameTokenDisposable = vscode.commands.registerCommand('colorTokenManager.renameToken', async () => {
-    try {
-      await renameTokenAcrossProject();
-      if (selectedFile) {
-        await refreshWebview(selectedFile, 'Renamed token across project.');
-      }
-    } catch (error) {
-      showError(error);
-    }
-  });
-
-  const unusedTokensDisposable = vscode.commands.registerCommand('colorTokenManager.findUnusedTokens', async () => {
-    try {
-      await showUnusedTokens();
-    } catch (error) {
-      showError(error);
-    }
-  });
-
-  const exportTokensDisposable = vscode.commands.registerCommand('colorTokenManager.exportTokens', async () => {
-    try {
-      await exportDesignTokens();
-    } catch (error) {
-      showError(error);
-    }
-  });
-
-  const pickDisposable = vscode.commands.registerCommand('colorTokenManager.pickColorsFile', async () => {
-    try {
-      await handlePickFileAgain(context);
-    } catch (error) {
-      showError(error);
-    }
-  });
-
-  const refreshDisposable = vscode.commands.registerCommand('colorTokenManager.refresh', async () => {
-    try {
-      if (!selectedFile) {
-        const fileUri = await getConfiguredColorsFile();
-        if (fileUri) {
-          selectedFile = fileUri;
+  const extractDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.extractFromCurrentFile',
+    async () => {
+      try {
+        await extractColorsFromCurrentFile(lastExtractionTarget);
+        if (selectedFile) {
+          await refreshWebview(selectedFile, 'Extracted colors from current file.');
         }
+      } catch (error) {
+        showError(error);
       }
+    },
+  );
 
-      if (selectedFile) {
-        await refreshWebview(selectedFile, 'Refreshed colors.');
+  const extractFolderDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.extractFromFolder',
+    async (folderUri?: vscode.Uri) => {
+      try {
+        await extractColorsFromFolder(folderUri);
+        if (selectedFile) {
+          await refreshWebview(selectedFile, 'Extracted colors from folder.');
+        }
+      } catch (error) {
+        showError(error);
       }
-    } catch (error) {
-      showError(error);
-    }
-  });
+    },
+  );
+
+  const previewFolderDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.previewFromFolder',
+    async (folderUri?: vscode.Uri) => {
+      try {
+        await openFolderPreview(context, folderUri);
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
+  const previewSelectionDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.previewFromSelection',
+    async () => {
+      try {
+        await openSelectionPreview(context);
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
+  const previewColorAtRangeDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.previewColorAtRange',
+    async (target: SelectionPreviewTarget) => {
+      try {
+        await openSelectionPreview(context, target);
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
+  const renameTokenDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.renameToken',
+    async () => {
+      try {
+        await renameTokenAcrossProject();
+        if (selectedFile) {
+          await refreshWebview(selectedFile, 'Renamed token across project.');
+        }
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
+  const unusedTokensDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.findUnusedTokens',
+    async () => {
+      try {
+        await showUnusedTokens();
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
+  const exportTokensDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.exportTokens',
+    async () => {
+      try {
+        await exportDesignTokens();
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
+  const pickDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.pickColorsFile',
+    async () => {
+      try {
+        await handlePickFileAgain(context);
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
+  const refreshDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.refresh',
+    async () => {
+      try {
+        if (!selectedFile) {
+          const fileUri = await getConfiguredColorsFile(
+            vscode.window.activeTextEditor?.document.uri,
+          );
+          if (fileUri) {
+            selectedFile = fileUri;
+          }
+        }
+
+        if (selectedFile) {
+          await refreshWebview(selectedFile, 'Refreshed colors.');
+        }
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
 
   context.subscriptions.push(
     activeEditorDisposable,
@@ -164,7 +204,7 @@ export function activate(context: vscode.ExtensionContext): void {
     unusedTokensDisposable,
     exportTokensDisposable,
     pickDisposable,
-    refreshDisposable
+    refreshDisposable,
   );
 }
 
@@ -172,7 +212,10 @@ export function deactivate(): void {
   watcher?.dispose();
 }
 
-async function openColorManager(context: vscode.ExtensionContext, fileUri: vscode.Uri): Promise<void> {
+async function openColorManager(
+  context: vscode.ExtensionContext,
+  fileUri: vscode.Uri,
+): Promise<void> {
   const colors = await readColors(fileUri);
 
   if (panel) {
@@ -184,26 +227,38 @@ async function openColorManager(context: vscode.ExtensionContext, fileUri: vscod
       vscode.ViewColumn.One,
       {
         enableScripts: true,
-        localResourceRoots: [context.extensionUri]
-      }
+        localResourceRoots: [context.extensionUri],
+      },
     );
 
-    panel.onDidDispose(() => {
-      panel = undefined;
-      watcher?.dispose();
-      watcher = undefined;
-    }, undefined, context.subscriptions);
+    panel.onDidDispose(
+      () => {
+        panel = undefined;
+        watcher?.dispose();
+        watcher = undefined;
+      },
+      undefined,
+      context.subscriptions,
+    );
 
-    panel.webview.onDidReceiveMessage((message) => {
-      void handleWebviewMessage(message);
-    }, undefined, context.subscriptions);
+    panel.webview.onDidReceiveMessage(
+      (message) => {
+        void handleWebviewMessage(message);
+      },
+      undefined,
+      context.subscriptions,
+    );
   }
 
   panel.webview.html = getWebviewHtml(panel.webview, context.extensionUri, fileUri, colors);
   setupWatcher(fileUri);
 }
 
-async function handleWebviewMessage(message: { type?: string; key?: string; value?: string }): Promise<void> {
+async function handleWebviewMessage(message: {
+  type?: string;
+  key?: string;
+  value?: string;
+}): Promise<void> {
   if (!selectedFile || !panel) {
     return;
   }
@@ -255,7 +310,10 @@ async function handleWebviewMessage(message: { type?: string; key?: string; valu
   }
 }
 
-async function openSelectionPreview(context?: vscode.ExtensionContext, target?: SelectionPreviewTarget): Promise<void> {
+async function openSelectionPreview(
+  context?: vscode.ExtensionContext,
+  target?: SelectionPreviewTarget,
+): Promise<void> {
   const preview = await previewColorsFromSelection(target ?? lastSelectionTarget);
   if (!preview) {
     return;
@@ -264,7 +322,10 @@ async function openSelectionPreview(context?: vscode.ExtensionContext, target?: 
   await openPreviewPanel(preview, context);
 }
 
-async function openFolderPreview(context?: vscode.ExtensionContext, folderUri?: vscode.Uri): Promise<void> {
+async function openFolderPreview(
+  context?: vscode.ExtensionContext,
+  folderUri?: vscode.Uri,
+): Promise<void> {
   const preview = await previewColorsFromFolder(folderUri);
   if (!preview) {
     return;
@@ -273,7 +334,10 @@ async function openFolderPreview(context?: vscode.ExtensionContext, folderUri?: 
   await openPreviewPanel(preview, context);
 }
 
-async function openPreviewPanel(preview: FolderExtractionPreview, context?: vscode.ExtensionContext): Promise<void> {
+async function openPreviewPanel(
+  preview: FolderExtractionPreview,
+  context?: vscode.ExtensionContext,
+): Promise<void> {
   lastFolderPreview = preview;
 
   if (previewPanel) {
@@ -285,24 +349,26 @@ async function openPreviewPanel(preview: FolderExtractionPreview, context?: vsco
       vscode.ViewColumn.One,
       {
         enableScripts: true,
-        localResourceRoots: context ? [context.extensionUri] : []
-      }
+        localResourceRoots: context ? [context.extensionUri] : [],
+      },
     );
 
     previewPanel.onDidDispose(() => {
       previewPanel = undefined;
     });
 
-    previewPanel.webview.onDidReceiveMessage((message: {
-      type?: string;
-      previewId?: string;
-      preview?: FolderExtractionPreview;
-      fileUri?: string;
-      start?: number;
-      line?: number;
-    }) => {
-      void handlePreviewMessage(message);
-    });
+    previewPanel.webview.onDidReceiveMessage(
+      (message: {
+        type?: string;
+        previewId?: string;
+        preview?: FolderExtractionPreview;
+        fileUri?: string;
+        start?: number;
+        line?: number;
+      }) => {
+        void handlePreviewMessage(message);
+      },
+    );
   }
 
   previewPanel.webview.html = getPreviewWebviewHtml(preview);
@@ -322,7 +388,11 @@ async function handlePreviewMessage(message: {
       return;
     }
 
-    if (message.type !== 'applyPreview' || !lastFolderPreview || message.previewId !== lastFolderPreview.id) {
+    if (
+      message.type !== 'applyPreview' ||
+      !lastFolderPreview ||
+      message.previewId !== lastFolderPreview.id
+    ) {
       return;
     }
 
@@ -350,23 +420,29 @@ function openResultsPanel(result: FolderApplyResult): void {
       'Color Extraction Results',
       vscode.ViewColumn.One,
       {
-        enableScripts: true
-      }
+        enableScripts: true,
+      },
     );
 
     resultsPanel.onDidDispose(() => {
       resultsPanel = undefined;
     });
 
-    resultsPanel.webview.onDidReceiveMessage((message: { type?: string; fileUri?: string; line?: number }) => {
-      void handleResultsMessage(message);
-    });
+    resultsPanel.webview.onDidReceiveMessage(
+      (message: { type?: string; fileUri?: string; line?: number }) => {
+        void handleResultsMessage(message);
+      },
+    );
   }
 
   resultsPanel.webview.html = getResultsWebviewHtml(result);
 }
 
-async function handleResultsMessage(message: { type?: string; fileUri?: string; line?: number }): Promise<void> {
+async function handleResultsMessage(message: {
+  type?: string;
+  fileUri?: string;
+  line?: number;
+}): Promise<void> {
   try {
     if (message.type === 'openResultOccurrence') {
       await openPreviewOccurrence(message);
@@ -376,15 +452,20 @@ async function handleResultsMessage(message: { type?: string; fileUri?: string; 
   }
 }
 
-async function openPreviewOccurrence(message: { fileUri?: string; start?: number; line?: number }): Promise<void> {
+async function openPreviewOccurrence(message: {
+  fileUri?: string;
+  start?: number;
+  line?: number;
+}): Promise<void> {
   if (!message.fileUri) {
     return;
   }
 
   const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(message.fileUri));
-  const position = typeof message.start === 'number'
-    ? document.positionAt(message.start)
-    : new vscode.Position(Math.max((message.line ?? 1) - 1, 0), 0);
+  const position =
+    typeof message.start === 'number'
+      ? document.positionAt(message.start)
+      : new vscode.Position(Math.max((message.line ?? 1) - 1, 0), 0);
   const editor = await vscode.window.showTextDocument(document, vscode.ViewColumn.Active);
   const range = new vscode.Range(position, position.translate(0, 1));
   editor.selection = new vscode.Selection(position, position);
@@ -405,7 +486,7 @@ function rememberSelectionTarget(editor: vscode.TextEditor | undefined): void {
   lastSelectionTarget = {
     uri: editor.document.uri,
     start: editor.document.offsetAt(editor.selection.start),
-    end: editor.document.offsetAt(editor.selection.end)
+    end: editor.document.offsetAt(editor.selection.end),
   };
 }
 
@@ -435,7 +516,11 @@ async function rememberColorsFile(fileUri: vscode.Uri): Promise<void> {
 
   await vscode.workspace
     .getConfiguration('colorTokenManager', folder.uri)
-    .update('colorsFilePath', vscode.workspace.asRelativePath(fileUri), vscode.ConfigurationTarget.Workspace);
+    .update(
+      'colorsFilePath',
+      vscode.workspace.asRelativePath(fileUri),
+      vscode.ConfigurationTarget.Workspace,
+    );
 }
 
 async function handleUpdateColor(fileUri: vscode.Uri, key?: string, value?: string): Promise<void> {
@@ -444,7 +529,7 @@ async function handleUpdateColor(fileUri: vscode.Uri, key?: string, value?: stri
   }
 
   if (!validateColorValue(value)) {
-    throw new Error('Invalid color value. Use #RGB, #RRGGBB, rgb(255, 255, 255), or rgba(255, 255, 255, 0.5).');
+    throw new Error('Invalid color value. Use #RGB, #RRGGBB, rgb(), rgba(), hsl(), or hsla().');
   }
 
   await updateColor(fileUri, key, value);
@@ -478,7 +563,9 @@ function setupWatcher(fileUri: vscode.Uri): void {
   }
 
   const relativePath = path.relative(folder.uri.fsPath, fileUri.fsPath).replace(/\\/g, '/');
-  watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, relativePath));
+  watcher = vscode.workspace.createFileSystemWatcher(
+    new vscode.RelativePattern(folder, relativePath),
+  );
 
   const refresh = (changedUri: vscode.Uri) => {
     if (changedUri.toString() === fileUri.toString()) {
@@ -501,15 +588,15 @@ function postColors(fileUri: vscode.Uri, colors: AppColor[]): void {
     type: 'setColors',
     payload: {
       filePath: fileUri.fsPath,
-      colors
-    }
+      colors,
+    },
   });
 }
 
 function postStatus(message: string): void {
   void panel?.webview.postMessage({
     type: 'status',
-    message
+    message,
   });
 }
 

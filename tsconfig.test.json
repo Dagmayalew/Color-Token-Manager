@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "out-test",
+    "rootDir": ".",
+    "sourceMap": false,
+    "baseUrl": ".",
+    "paths": {
+      "vscode": ["test/stubs/vscode.ts"]
+    }
+  },
+  "include": [
+    "src/workspaceUtils.ts",
+    "src/globUtils.ts",
+    "src/colorUtils.ts",
+    "src/colorFile.ts",
+    "src/colorScan.ts",
+    "src/colorPlan.ts",
+    "src/colorApply.ts",
+    "src/colorExtractor.ts",
+    "src/importUtils.ts",
+    "src/types.ts",
+    "test/**/*.ts"
+  ],
+  "exclude": ["test/fixtures/**", "test/runTest.ts", "test/suite/**"]
+}

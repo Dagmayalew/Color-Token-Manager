@@ -1,4 +1,4 @@
-export type ColorType = 'hex' | 'rgb' | 'rgba' | 'unknown';
+export type ColorType = 'hex' | 'rgb' | 'rgba' | 'hsl' | 'hsla' | 'unknown';
 
 export type AppColor = {
   key: string;
@@ -15,7 +15,7 @@ export type ExtractedColor = {
   end: number;
   suggestedName: string;
   existingTokenName?: string;
-  replacementKind?: 'literal' | 'embeddedString';
+  replacementKind?: 'literal' | 'embeddedString' | 'cssLiteral';
   embeddedPrefix?: string;
   embeddedSuffix?: string;
 };

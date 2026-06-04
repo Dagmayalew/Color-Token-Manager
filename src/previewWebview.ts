@@ -1,5 +1,4 @@
-import * as vscode from 'vscode';
-import { FolderExtractionPreview } from './types';
+import { type FolderExtractionPreview } from './types';
 
 export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string {
   const nonce = getNonce();
@@ -315,7 +314,7 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
 
     function collectEditedPreview() {
       const next = JSON.parse(JSON.stringify(preview));
-      const tokenNamePattern = /^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
+      const tokenNamePattern = /^[A-Za-z_$][A-Za-z0-9_$]*(?:\\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
       const renamedTokens = new Map();
 
       for (const checkbox of document.querySelectorAll('input[data-enabled-file-index]')) {

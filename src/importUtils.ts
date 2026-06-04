@@ -1,7 +1,44 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-export function getColorsImportPath(document: vscode.TextDocument, colorsFileUri: vscode.Uri): string {
+const IMPORT_STYLE_DEPRECATION_KEY = 'colorTokenManager.importStyleDeprecationWarned';
+
+export function warnDeprecatedImportStyleIfNeeded(context: vscode.ExtensionContext): void {
+  if (context.globalState.get<boolean>(IMPORT_STYLE_DEPRECATION_KEY)) {
+    return;
+  }
+
+  const configuration = vscode.workspace.getConfiguration('colorTokenManager');
+  const importStyleInspect = configuration.inspect<'named' | 'default'>('importStyle');
+  const hasExplicitImportStyle = [
+    importStyleInspect?.globalValue,
+    importStyleInspect?.workspaceValue,
+    importStyleInspect?.workspaceFolderValue,
+  ].some((value) => value !== undefined);
+
+  if (!hasExplicitImportStyle) {
+    return;
+  }
+
+  const importModeInspect = configuration.inspect<'named' | 'default' | 'namespace'>('importMode');
+  const hasExplicitImportMode = [
+    importModeInspect?.globalValue,
+    importModeInspect?.workspaceValue,
+    importModeInspect?.workspaceFolderValue,
+  ].some((value) => value !== undefined);
+
+  const message = hasExplicitImportMode
+    ? 'Color Token Manager: colorTokenManager.importStyle is deprecated and ignored while colorTokenManager.importMode is set. Remove importStyle before v1.0.0.'
+    : 'Color Token Manager: colorTokenManager.importStyle is deprecated. Use colorTokenManager.importMode instead (supports named, default, and namespace). importStyle will be removed in v1.0.0.';
+
+  void vscode.window.showWarningMessage(message).then(() => undefined);
+  void context.globalState.update(IMPORT_STYLE_DEPRECATION_KEY, true);
+}
+
+export function getColorsImportPath(
+  document: vscode.TextDocument,
+  colorsFileUri: vscode.Uri,
+): string {
   const configuredImportPath = vscode.workspace
     .getConfiguration('colorTokenManager')
     .get<string>('importPath', '')
@@ -34,7 +71,7 @@ export function getColorsIdentifier(): string {
 export function addColorsImportEdit(
   edit: vscode.WorkspaceEdit,
   document: vscode.TextDocument,
-  colorsFileUri: vscode.Uri
+  colorsFileUri: vscode.Uri,
 ): void {
   const importPath = getColorsImportPath(document, colorsFileUri);
   const identifier = getColorsIdentifier();
@@ -75,7 +112,11 @@ export function addColorsImportEdit(
   }
 
   const importText = getImportText(importPath, identifier, importMode);
-  edit.insert(document.uri, document.positionAt(lastImportEnd), lastImportEnd > 0 ? `\n${importText}` : importText);
+  edit.insert(
+    document.uri,
+    document.positionAt(lastImportEnd),
+    lastImportEnd > 0 ? `\n${importText}` : importText,
+  );
 }
 
 function getImportMode(): 'named' | 'default' | 'namespace' {
@@ -89,7 +130,11 @@ function getImportMode(): 'named' | 'default' | 'namespace' {
   return configuration.get<'named' | 'default'>('importStyle', 'named');
 }
 
-function getImportText(importPath: string, identifier: string, importMode: 'named' | 'default' | 'namespace'): string {
+function getImportText(
+  importPath: string,
+  identifier: string,
+  importMode: 'named' | 'default' | 'namespace',
+): string {
   if (importMode === 'default') {
     return `import ${identifier} from '${importPath}';\n`;
   }
@@ -101,7 +146,11 @@ function getImportText(importPath: string, identifier: string, importMode: 'name
   return `import { ${identifier === 'colors' ? 'colors' : `colors as ${identifier}`} } from '${importPath}';\n`;
 }
 
-function hasColorsImport(importClause: string, identifier: string, importMode: 'named' | 'default' | 'namespace'): boolean {
+function hasColorsImport(
+  importClause: string,
+  identifier: string,
+  importMode: 'named' | 'default' | 'namespace',
+): boolean {
   if (importMode === 'namespace') {
     return new RegExp(`^\\*\\s+as\\s+${escapeRegExp(identifier)}$`).test(importClause.trim());
   }
@@ -124,7 +173,11 @@ function hasColorsImport(importClause: string, identifier: string, importMode: '
     .map((name) => name.trim())
     .some((name) => {
       const [imported, alias] = name.split(/\s+as\s+/i).map((part) => part.trim());
-      return imported === identifier || alias === identifier || (imported === 'colors' && identifier === 'colors');
+      return (
+        imported === identifier ||
+        alias === identifier ||
+        (imported === 'colors' && identifier === 'colors')
+      );
     });
 }
 

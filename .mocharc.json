@@ -1,0 +1,7 @@
+{
+  "ui": "tdd",
+  "timeout": 20000,
+  "reporter": "spec",
+  "root": "out-test/test/suite",
+  "extensionEntrypoints": ["out-test/test/suite/index"]
+}

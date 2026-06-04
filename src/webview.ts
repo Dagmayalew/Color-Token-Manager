@@ -1,17 +1,17 @@
-import * as vscode from 'vscode';
-import { AppColor } from './types';
+import type * as vscode from 'vscode';
+import { type AppColor } from './types';
 
 export function getWebviewHtml(
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
   fileUri: vscode.Uri,
-  colors: AppColor[]
+  colors: AppColor[],
 ): string {
   const nonce = getNonce();
   const cspSource = webview.cspSource;
   const payload = JSON.stringify({
     filePath: fileUri.fsPath,
-    colors
+    colors,
   }).replace(/</g, '\\u003c');
 
   return `<!DOCTYPE html>
