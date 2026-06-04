@@ -38,9 +38,7 @@ export function addColorsImportEdit(
 ): void {
   const importPath = getColorsImportPath(document, colorsFileUri);
   const identifier = getColorsIdentifier();
-  const importStyle = vscode.workspace
-    .getConfiguration('colorTokenManager')
-    .get<'named' | 'default'>('importStyle', 'named');
+  const importMode = getImportMode();
   const text = document.getText();
   const importRegex = /^import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?/gm;
   let lastImportEnd = 0;
@@ -55,11 +53,11 @@ export function addColorsImportEdit(
       continue;
     }
 
-    if (hasColorsImport(clause, identifier, importStyle)) {
+    if (hasColorsImport(clause, identifier, importMode)) {
       return;
     }
 
-    if (importStyle === 'default') {
+    if (importMode === 'default' || importMode === 'namespace') {
       continue;
     }
 
@@ -76,14 +74,39 @@ export function addColorsImportEdit(
     return;
   }
 
-  const importText = importStyle === 'default'
-    ? `import ${identifier} from '${importPath}';\n`
-    : `import { ${identifier === 'colors' ? 'colors' : `colors as ${identifier}`} } from '${importPath}';\n`;
+  const importText = getImportText(importPath, identifier, importMode);
   edit.insert(document.uri, document.positionAt(lastImportEnd), lastImportEnd > 0 ? `\n${importText}` : importText);
 }
 
-function hasColorsImport(importClause: string, identifier: string, importStyle: 'named' | 'default'): boolean {
-  if (importStyle === 'default') {
+function getImportMode(): 'named' | 'default' | 'namespace' {
+  const configuration = vscode.workspace.getConfiguration('colorTokenManager');
+  const importMode = configuration.get<'named' | 'default' | 'namespace' | undefined>('importMode');
+
+  if (importMode) {
+    return importMode;
+  }
+
+  return configuration.get<'named' | 'default'>('importStyle', 'named');
+}
+
+function getImportText(importPath: string, identifier: string, importMode: 'named' | 'default' | 'namespace'): string {
+  if (importMode === 'default') {
+    return `import ${identifier} from '${importPath}';\n`;
+  }
+
+  if (importMode === 'namespace') {
+    return `import * as ${identifier} from '${importPath}';\n`;
+  }
+
+  return `import { ${identifier === 'colors' ? 'colors' : `colors as ${identifier}`} } from '${importPath}';\n`;
+}
+
+function hasColorsImport(importClause: string, identifier: string, importMode: 'named' | 'default' | 'namespace'): boolean {
+  if (importMode === 'namespace') {
+    return new RegExp(`^\\*\\s+as\\s+${escapeRegExp(identifier)}$`).test(importClause.trim());
+  }
+
+  if (importMode === 'default') {
     return importClause
       .replace(/\{[\s\S]*?\}/g, '')
       .split(',')
@@ -103,4 +126,8 @@ function hasColorsImport(importClause: string, identifier: string, importStyle: 
       const [imported, alias] = name.split(/\s+as\s+/i).map((part) => part.trim());
       return imported === identifier || alias === identifier || (imported === 'colors' && identifier === 'colors');
     });
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

@@ -5,7 +5,9 @@ import {
   extractColorsFromCurrentFile,
   extractColorsFromFolder,
   isSupportedExtractionDocument,
-  previewColorsFromFolder
+  previewColorsFromFolder,
+  previewColorsFromSelection,
+  SelectionPreviewTarget
 } from './colorExtractor';
 import { getConfiguredColorsFile, pickColorsFile, readColors, updateColor, validateColorValue } from './colorFile';
 import { getPreviewWebviewHtml } from './previewWebview';
@@ -18,14 +20,19 @@ let previewPanel: vscode.WebviewPanel | undefined;
 let resultsPanel: vscode.WebviewPanel | undefined;
 let selectedFile: vscode.Uri | undefined;
 let lastExtractionTarget: vscode.Uri | undefined;
+let lastSelectionTarget: SelectionPreviewTarget | undefined;
 let lastFolderPreview: FolderExtractionPreview | undefined;
 let watcher: vscode.FileSystemWatcher | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   rememberExtractionTarget(vscode.window.activeTextEditor);
+  rememberSelectionTarget(vscode.window.activeTextEditor);
 
   const activeEditorDisposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
     rememberExtractionTarget(editor);
+  });
+  const selectionDisposable = vscode.window.onDidChangeTextEditorSelection((event) => {
+    rememberSelectionTarget(event.textEditor);
   });
 
   const openDisposable = vscode.commands.registerCommand('colorTokenManager.open', async () => {
@@ -73,6 +80,14 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
+  const previewSelectionDisposable = vscode.commands.registerCommand('colorTokenManager.previewFromSelection', async () => {
+    try {
+      await openSelectionPreview(context);
+    } catch (error) {
+      showError(error);
+    }
+  });
+
   const pickDisposable = vscode.commands.registerCommand('colorTokenManager.pickColorsFile', async () => {
     try {
       await handlePickFileAgain(context);
@@ -100,10 +115,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     activeEditorDisposable,
+    selectionDisposable,
     openDisposable,
     extractDisposable,
     extractFolderDisposable,
     previewFolderDisposable,
+    previewSelectionDisposable,
     pickDisposable,
     refreshDisposable
   );
@@ -174,6 +191,9 @@ async function handleWebviewMessage(message: { type?: string; key?: string; valu
       case 'previewFromFolder':
         await openFolderPreview();
         break;
+      case 'previewFromSelection':
+        await openSelectionPreview();
+        break;
       default:
         break;
     }
@@ -183,12 +203,25 @@ async function handleWebviewMessage(message: { type?: string; key?: string; valu
   }
 }
 
+async function openSelectionPreview(context?: vscode.ExtensionContext): Promise<void> {
+  const preview = await previewColorsFromSelection(lastSelectionTarget);
+  if (!preview) {
+    return;
+  }
+
+  await openPreviewPanel(preview, context);
+}
+
 async function openFolderPreview(context?: vscode.ExtensionContext, folderUri?: vscode.Uri): Promise<void> {
   const preview = await previewColorsFromFolder(folderUri);
   if (!preview) {
     return;
   }
 
+  await openPreviewPanel(preview, context);
+}
+
+async function openPreviewPanel(preview: FolderExtractionPreview, context?: vscode.ExtensionContext): Promise<void> {
   lastFolderPreview = preview;
 
   if (previewPanel) {
@@ -310,6 +343,18 @@ function rememberExtractionTarget(editor: vscode.TextEditor | undefined): void {
   if (editor && isSupportedExtractionDocument(editor.document)) {
     lastExtractionTarget = editor.document.uri;
   }
+}
+
+function rememberSelectionTarget(editor: vscode.TextEditor | undefined): void {
+  if (!editor || !isSupportedExtractionDocument(editor.document) || editor.selection.isEmpty) {
+    return;
+  }
+
+  lastSelectionTarget = {
+    uri: editor.document.uri,
+    start: editor.document.offsetAt(editor.selection.start),
+    end: editor.document.offsetAt(editor.selection.end)
+  };
 }
 
 async function handlePickFileAgain(context?: vscode.ExtensionContext): Promise<void> {

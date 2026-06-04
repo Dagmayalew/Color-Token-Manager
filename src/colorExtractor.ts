@@ -25,6 +25,12 @@ const SUPPORTED_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
 const BLOCKED_PATH_PARTS = ['/node_modules/', '/build/', '/dist/'];
 type ExtractionResult = { extracted: number; added: number; reused: number; skipped: number };
 type PreviewFileApplyResult = ExtractionResult & { appliedReplacements: AppliedColorReplacement[] };
+export type SelectionPreviewTarget = { uri: vscode.Uri; start: number; end: number };
+type PreviewPlanner = {
+  existingColors: AppColor[];
+  knownTokenNames: Set<string>;
+  tokenByNormalizedValue: Map<string, string>;
+};
 
 export function extractHardcodedColorsFromText(text: string): ExtractedColor[] {
   const ignoredRanges = [
@@ -299,7 +305,9 @@ export async function applyFolderExtractionPreview(preview: FolderExtractionPrev
     throw new Error('Open the workspace that contains the previewed folder.');
   }
 
-  const fileUris = preview.files.map((file) => vscode.Uri.parse(file.fileUri));
+  const fileUris = preview.files
+    .filter((file) => file.replacements.some((replacement) => replacement.enabled !== false))
+    .map((file) => vscode.Uri.parse(file.fileUri));
   await createFolderExtractionBackup(fileUris, colorsFileUri, workspaceFolder);
 
   const summary = await vscode.window.withProgress(
@@ -374,6 +382,10 @@ function validatePreviewTokenNames(preview: FolderExtractionPreview): void {
         continue;
       }
 
+      if (replacement.enabled === false) {
+        continue;
+      }
+
       if (!tokenNamePattern.test(replacement.tokenName)) {
         throw new Error(`Invalid token name "${replacement.tokenName}".`);
       }
@@ -423,7 +435,8 @@ async function applyPreviewForFile(
 ): Promise<PreviewFileApplyResult> {
   const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(filePreview.fileUri));
   const extractedColors = extractHardcodedColorsFromText(document.getText());
-  const plannedReplacements = [...filePreview.replacements];
+  const plannedReplacements = filePreview.replacements.filter((replacement) => replacement.enabled !== false);
+  const selectedReplacementCount = plannedReplacements.length;
   const replacementByRange = new Map<string, string>();
   const appliedReplacements: AppliedColorReplacement[] = [];
   let added = 0;
@@ -466,7 +479,7 @@ async function applyPreviewForFile(
 
   if (!replacementByRange.size) {
     return {
-      extracted: filePreview.replacements.length,
+      extracted: selectedReplacementCount,
       added,
       reused,
       skipped,
@@ -501,7 +514,7 @@ async function applyPreviewForFile(
   await document.save();
 
   return {
-    extracted: filePreview.replacements.length,
+    extracted: selectedReplacementCount,
     added,
     reused,
     skipped,
@@ -544,6 +557,55 @@ export async function previewColorsFromFolder(folderOverride?: vscode.Uri): Prom
   return buildFolderExtractionPreview(folderUri, colorsFileUri);
 }
 
+export async function previewColorsFromSelection(target?: SelectionPreviewTarget): Promise<FolderExtractionPreview | undefined> {
+  const editor = vscode.window.activeTextEditor;
+  const document = target ? await vscode.workspace.openTextDocument(target.uri) : editor?.document;
+  const activeSelection = !target && editor && !editor.selection.isEmpty
+    ? {
+      start: document ? document.offsetAt(editor.selection.start) : 0,
+      end: document ? document.offsetAt(editor.selection.end) : 0
+    }
+    : undefined;
+  const selection = activeSelection ?? target;
+
+  if (!document || !selection || selection.start === selection.end) {
+    throw new Error('Select text in a .ts, .tsx, .js, or .jsx file before previewing colors from selection.');
+  }
+
+  if (!isSupportedExtractionDocument(document)) {
+    throw new Error('Select text in a .ts, .tsx, .js, or .jsx file before previewing colors from selection.');
+  }
+
+  const colorsFileUri = await getConfiguredColorsFile();
+  if (!colorsFileUri) {
+    return undefined;
+  }
+
+  const selectionStart = Math.min(selection.start, selection.end);
+  const selectionEnd = Math.max(selection.start, selection.end);
+  const selectionText = document.getText(new vscode.Range(document.positionAt(selectionStart), document.positionAt(selectionEnd)));
+  const extractedColors = extractHardcodedColorsFromText(selectionText).map((color) => ({
+    ...color,
+    start: color.start + selectionStart,
+    end: color.end + selectionStart
+  }));
+  const existingColors = await readColors(colorsFileUri);
+  const filePreview = buildPreviewForDocument(document, extractedColors, createPreviewPlanner(existingColors));
+
+  return {
+    id: `${Date.now()}`,
+    folderPath: `${vscode.workspace.asRelativePath(document.uri)} selection`,
+    folderUri: document.uri.toString(),
+    colorsFilePath: vscode.workspace.asRelativePath(colorsFileUri),
+    filesScanned: 1,
+    filesWithColors: filePreview.replacements.length ? 1 : 0,
+    colorsFound: filePreview.replacements.length,
+    tokensToAdd: filePreview.replacements.filter((replacement) => replacement.action === 'add' || replacement.action === 'alias').length,
+    tokensToReuse: filePreview.replacements.filter((replacement) => replacement.action === 'reuse').length,
+    files: filePreview.replacements.length ? [filePreview] : []
+  };
+}
+
 export async function buildFolderExtractionPreview(
   folderUri: vscode.Uri,
   colorsFileUri: vscode.Uri
@@ -555,89 +617,23 @@ export async function buildFolderExtractionPreview(
 
   const fileUris = await findSupportedFilesInFolder(folderUri, workspaceFolder, colorsFileUri);
   const existingColors = await readColors(colorsFileUri);
-  const knownTokenNames = new Set(existingColors.map((color) => color.key));
-  const tokenByNormalizedValue = new Map<string, string>();
-  const autoReplaceExistingColors = vscode.workspace
-    .getConfiguration('colorTokenManager')
-    .get<boolean>('autoReplaceExistingColors', true);
+  const planner = createPreviewPlanner(existingColors);
   const files: FileExtractionPreview[] = [];
   let colorsFound = 0;
   let tokensToAdd = 0;
   let tokensToReuse = 0;
 
-  for (const color of existingColors) {
-    tokenByNormalizedValue.set(normalizeColorValue(color.value), color.key);
-  }
-
   for (const fileUri of fileUris) {
     const document = await vscode.workspace.openTextDocument(fileUri);
     const extractedColors = extractHardcodedColorsFromText(document.getText());
-    const replacements: FileExtractionPreview['replacements'] = [];
-
-    for (const extracted of extractedColors) {
-      colorsFound++;
-      const normalized = normalizeColorValue(extracted.value);
-      const existingToken = tokenByNormalizedValue.get(normalized) ?? findExistingTokenByValue(existingColors, extracted.value)?.key;
-      const createAliases = vscode.workspace
-        .getConfiguration('colorTokenManager')
-        .get<boolean>('createSemanticAliases', true);
-
-      if (existingToken) {
-        if (autoReplaceExistingColors) {
-          if (createAliases && shouldCreateAlias(existingToken, extracted.suggestedName, knownTokenNames)) {
-            const tokenName = getUniqueTokenName(extracted.suggestedName, knownTokenNames);
-            knownTokenNames.add(tokenName);
-            tokenByNormalizedValue.set(normalized, tokenName);
-            tokensToAdd++;
-            replacements.push({
-              value: extracted.value,
-              tokenName,
-              action: 'alias',
-              aliasOf: existingToken,
-              line: document.positionAt(extracted.start).line + 1,
-              start: extracted.start
-            });
-          } else {
-            tokensToReuse++;
-            replacements.push({
-              value: extracted.value,
-              tokenName: existingToken,
-              action: 'reuse',
-              line: document.positionAt(extracted.start).line + 1,
-              start: extracted.start
-            });
-          }
-        } else {
-          replacements.push({
-            value: extracted.value,
-            tokenName: existingToken,
-            action: 'skip',
-            line: document.positionAt(extracted.start).line + 1,
-            start: extracted.start
-          });
-        }
-        continue;
-      }
-
-      const tokenName = getUniqueTokenName(extracted.suggestedName, knownTokenNames);
-      knownTokenNames.add(tokenName);
-      tokenByNormalizedValue.set(normalized, tokenName);
-      tokensToAdd++;
-      replacements.push({
-        value: extracted.value,
-        tokenName,
-        action: 'add',
-        line: document.positionAt(extracted.start).line + 1,
-        start: extracted.start
-      });
-    }
+    const filePreview = buildPreviewForDocument(document, extractedColors, planner);
+    const replacements = filePreview.replacements;
+    colorsFound += replacements.length;
+    tokensToAdd += replacements.filter((replacement) => replacement.action === 'add' || replacement.action === 'alias').length;
+    tokensToReuse += replacements.filter((replacement) => replacement.action === 'reuse').length;
 
     if (replacements.length) {
-      files.push({
-        filePath: vscode.workspace.asRelativePath(fileUri),
-        fileUri: fileUri.toString(),
-        replacements
-      });
+      files.push(filePreview);
     }
   }
 
@@ -652,6 +648,96 @@ export async function buildFolderExtractionPreview(
     tokensToAdd,
     tokensToReuse,
     files
+  };
+}
+
+function createPreviewPlanner(existingColors: AppColor[]): PreviewPlanner {
+  const tokenByNormalizedValue = new Map<string, string>();
+
+  for (const color of existingColors) {
+    tokenByNormalizedValue.set(normalizeColorValue(color.value), color.key);
+  }
+
+  return {
+    existingColors,
+    knownTokenNames: new Set(existingColors.map((color) => color.key)),
+    tokenByNormalizedValue
+  };
+}
+
+function buildPreviewForDocument(
+  document: vscode.TextDocument,
+  extractedColors: ExtractedColor[],
+  planner: PreviewPlanner
+): FileExtractionPreview {
+  const autoReplaceExistingColors = vscode.workspace
+    .getConfiguration('colorTokenManager')
+    .get<boolean>('autoReplaceExistingColors', true);
+  const createAliases = vscode.workspace
+    .getConfiguration('colorTokenManager')
+    .get<boolean>('createSemanticAliases', true);
+  const replacements: FileExtractionPreview['replacements'] = [];
+
+  for (const extracted of extractedColors) {
+    const normalized = normalizeColorValue(extracted.value);
+    const existingToken = planner.tokenByNormalizedValue.get(normalized)
+      ?? findExistingTokenByValue(planner.existingColors, extracted.value)?.key;
+
+    if (existingToken) {
+      if (autoReplaceExistingColors) {
+        if (createAliases && shouldCreateAlias(existingToken, extracted.suggestedName, planner.knownTokenNames)) {
+          const tokenName = getUniqueTokenName(extracted.suggestedName, planner.knownTokenNames);
+          planner.knownTokenNames.add(tokenName);
+          planner.tokenByNormalizedValue.set(normalized, tokenName);
+          replacements.push({
+            value: extracted.value,
+            tokenName,
+            action: 'alias',
+            enabled: true,
+            aliasOf: existingToken,
+            line: document.positionAt(extracted.start).line + 1,
+            start: extracted.start
+          });
+        } else {
+          replacements.push({
+            value: extracted.value,
+            tokenName: existingToken,
+            action: 'reuse',
+            enabled: true,
+            line: document.positionAt(extracted.start).line + 1,
+            start: extracted.start
+          });
+        }
+      } else {
+        replacements.push({
+          value: extracted.value,
+          tokenName: existingToken,
+          action: 'skip',
+          enabled: true,
+          line: document.positionAt(extracted.start).line + 1,
+          start: extracted.start
+        });
+      }
+      continue;
+    }
+
+    const tokenName = getUniqueTokenName(extracted.suggestedName, planner.knownTokenNames);
+    planner.knownTokenNames.add(tokenName);
+    planner.tokenByNormalizedValue.set(normalized, tokenName);
+    replacements.push({
+      value: extracted.value,
+      tokenName,
+      action: 'add',
+      enabled: true,
+      line: document.positionAt(extracted.start).line + 1,
+      start: extracted.start
+    });
+  }
+
+  return {
+    filePath: vscode.workspace.asRelativePath(document.uri),
+    fileUri: document.uri.toString(),
+    replacements
   };
 }
 
@@ -938,7 +1024,15 @@ function getTokenBaseName(value: string, contextText: string): string {
     return `${context.owner}.${context.role}`;
   }
 
-  return semanticColor ?? `${context.role ?? context.flatPrefix}${valueSuffix}`;
+  if (context.role && semanticColor) {
+    return `${context.role}.${semanticColor}`;
+  }
+
+  if (context.role) {
+    return `${context.role}.${valueSuffix}`;
+  }
+
+  return semanticColor ?? `${context.flatPrefix}${valueSuffix}`;
 }
 
 function getContextParts(contextText: string): { flatPrefix: string; owner?: string; role?: string } {

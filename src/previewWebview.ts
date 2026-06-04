@@ -89,7 +89,10 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
     }
 
     .file-header {
+      align-items: center;
       border-bottom: 1px solid var(--vscode-panel-border);
+      display: flex;
+      gap: 8px;
       font-weight: 600;
       padding: 10px;
       overflow-wrap: anywhere;
@@ -101,11 +104,11 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       cursor: pointer;
       display: grid;
       gap: 10px;
-      grid-template-columns: 70px minmax(100px, 160px) minmax(160px, 1fr) 80px auto;
+      grid-template-columns: 24px 70px minmax(100px, 160px) minmax(160px, 1fr) 80px auto;
       padding: 8px 10px;
     }
 
-    input {
+    input[type="text"] {
       background: var(--vscode-input-background);
       border: 1px solid var(--vscode-input-border);
       color: var(--vscode-input-foreground);
@@ -113,6 +116,13 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       min-height: 28px;
       padding: 3px 6px;
       width: 100%;
+    }
+
+    input[type="checkbox"] {
+      cursor: pointer;
+      height: 16px;
+      margin: 0;
+      width: 16px;
     }
 
     .row:last-child {
@@ -210,12 +220,26 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
     }
 
     preview.files.forEach((file) => {
+      const fileIndex = preview.files.indexOf(file);
       const section = document.createElement('section');
       section.className = 'file';
 
       const header = document.createElement('div');
       header.className = 'file-header';
-      header.textContent = file.filePath;
+      const fileToggle = document.createElement('input');
+      fileToggle.type = 'checkbox';
+      fileToggle.checked = file.replacements.some((replacement) => replacement.enabled !== false);
+      fileToggle.dataset.fileToggleIndex = String(fileIndex);
+      fileToggle.setAttribute('aria-label', 'Apply all colors in ' + file.filePath);
+      fileToggle.addEventListener('click', (event) => event.stopPropagation());
+      fileToggle.addEventListener('change', () => {
+        document.querySelectorAll('input[data-enabled-file-index="' + fileIndex + '"]').forEach((checkbox) => {
+          checkbox.checked = fileToggle.checked;
+        });
+      });
+      const headerText = document.createElement('span');
+      headerText.textContent = file.filePath;
+      header.append(fileToggle, headerText);
       section.appendChild(header);
 
       file.replacements.forEach((replacement, replacementIndex) => {
@@ -230,6 +254,15 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
           });
         });
 
+        const enabled = document.createElement('input');
+        enabled.type = 'checkbox';
+        enabled.checked = replacement.enabled !== false;
+        enabled.dataset.enabledFileIndex = String(fileIndex);
+        enabled.dataset.enabledReplacementIndex = String(replacementIndex);
+        enabled.setAttribute('aria-label', 'Apply ' + replacement.value + ' on line ' + replacement.line);
+        enabled.addEventListener('click', (event) => event.stopPropagation());
+        enabled.addEventListener('change', () => syncFileToggle(fileIndex));
+
         const action = document.createElement('span');
         action.className = 'badge ' + replacement.action;
         action.textContent = replacement.action;
@@ -240,9 +273,10 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
         let token;
         if (replacement.action === 'add' || replacement.action === 'alias') {
           token = document.createElement('input');
+          token.type = 'text';
           token.value = replacement.tokenName;
           token.dataset.originalTokenName = replacement.tokenName;
-          token.dataset.fileIndex = String(preview.files.indexOf(file));
+          token.dataset.fileIndex = String(fileIndex);
           token.dataset.replacementIndex = String(replacementIndex);
           token.setAttribute('aria-label', 'Token name for ' + replacement.value);
           token.addEventListener('click', (event) => event.stopPropagation());
@@ -272,7 +306,7 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
           });
         });
 
-        row.append(action, value, token, line, open);
+        row.append(enabled, action, value, token, line, open);
         section.appendChild(row);
       });
 
@@ -284,7 +318,13 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       const tokenNamePattern = /^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
       const renamedTokens = new Map();
 
-      for (const input of document.querySelectorAll('input[data-file-index]')) {
+      for (const checkbox of document.querySelectorAll('input[data-enabled-file-index]')) {
+        const fileIndex = Number(checkbox.dataset.enabledFileIndex);
+        const replacementIndex = Number(checkbox.dataset.enabledReplacementIndex);
+        next.files[fileIndex].replacements[replacementIndex].enabled = checkbox.checked;
+      }
+
+      for (const input of document.querySelectorAll('input[type="text"][data-file-index]')) {
         const fileIndex = Number(input.dataset.fileIndex);
         const replacementIndex = Number(input.dataset.replacementIndex);
         const tokenName = input.value.trim();
@@ -314,6 +354,16 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
 
       setStatus('');
       return next;
+    }
+
+    function syncFileToggle(fileIndex) {
+      const rowCheckboxes = Array.from(document.querySelectorAll('input[data-enabled-file-index="' + fileIndex + '"]'));
+      const fileToggle = document.querySelector('input[data-file-toggle-index="' + fileIndex + '"]');
+      if (!fileToggle) {
+        return;
+      }
+
+      fileToggle.checked = rowCheckboxes.some((checkbox) => checkbox.checked);
     }
 
     function setStatus(message) {

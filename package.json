@@ -3,7 +3,22 @@
   "displayName": "Color Token Manager",
   "description": "Extract hardcoded colors into React Native TypeScript color tokens and manage colors.ts.",
   "version": "0.0.1",
-  "publisher": "local",
+  "publisher": "dagmayalew",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dagmayalew489/color-token-manager"
+  },
+  "keywords": [
+    "colors",
+    "theme",
+    "tokens",
+    "react-native",
+    "typescript",
+    "design-system",
+    "color-manager"
+  ],
+  "license": "MIT",
+  "icon": "resources/icon.png",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -15,6 +30,7 @@
     "onCommand:colorTokenManager.extractFromCurrentFile",
     "onCommand:colorTokenManager.extractFromFolder",
     "onCommand:colorTokenManager.previewFromFolder",
+    "onCommand:colorTokenManager.previewFromSelection",
     "onCommand:colorTokenManager.pickColorsFile",
     "onCommand:colorTokenManager.refresh"
   ],
@@ -38,6 +54,10 @@
         "title": "Preview Colors From Folder"
       },
       {
+        "command": "colorTokenManager.previewFromSelection",
+        "title": "Preview Colors From Selection"
+      },
+      {
         "command": "colorTokenManager.pickColorsFile",
         "title": "Pick Colors File"
       },
@@ -52,11 +72,6 @@
           "command": "colorTokenManager.previewFromFolder",
           "when": "explorerResourceIsFolder",
           "group": "navigation@50"
-        },
-        {
-          "command": "colorTokenManager.extractFromFolder",
-          "when": "explorerResourceIsFolder",
-          "group": "navigation@51"
         }
       ]
     },
@@ -99,6 +114,12 @@
             "type": "string"
           },
           "default": [
+            "**/node_modules/**",
+            "**/dist/**",
+            "**/build/**",
+            "**/coverage/**",
+            "**/ios/**",
+            "**/android/**",
             "**/*.test.ts",
             "**/*.test.tsx",
             "**/*.spec.ts",
@@ -126,7 +147,17 @@
             "default"
           ],
           "default": "named",
-          "description": "How to import colors in files that are updated."
+          "description": "Deprecated. Use colorTokenManager.importMode instead."
+        },
+        "colorTokenManager.importMode": {
+          "type": "string",
+          "enum": [
+            "named",
+            "default",
+            "namespace"
+          ],
+          "default": "named",
+          "description": "Controls generated import syntax for colors."
         },
         "colorTokenManager.importIdentifier": {
           "type": "string",
@@ -142,10 +173,11 @@
     }
   },
   "scripts": {
+    "clean": "rm -rf dist *.vsix",
     "compile": "npm run check && npm run bundle",
     "check": "tsc -p ./ --noEmit",
-    "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js --sourcemap",
-    "watch": "tsc -watch -p ./",
+    "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js --minify",
+    "watch": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js --watch",
     "package": "vsce package",
     "vscode:prepublish": "npm run compile"
   },

@@ -24,6 +24,7 @@ export type ColorReplacementPreview = {
   value: string;
   tokenName: string;
   action: 'add' | 'alias' | 'reuse' | 'skip';
+  enabled?: boolean;
   line: number;
   start?: number;
   aliasOf?: string;

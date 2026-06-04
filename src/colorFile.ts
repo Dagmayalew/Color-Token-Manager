@@ -182,6 +182,39 @@ export async function updateColor(fileUri: vscode.Uri, key: string, value: strin
   await vscode.workspace.fs.writeFile(fileUri, Buffer.from(sourceFile.getFullText(), 'utf8'));
 }
 
+export async function renameColorToken(fileUri: vscode.Uri, oldKey: string, newKey: string): Promise<void> {
+  const tokenNamePattern = /^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
+  if (!tokenNamePattern.test(newKey)) {
+    throw new Error(`Invalid token name "${newKey}".`);
+  }
+
+  if (oldKey === newKey) {
+    return;
+  }
+
+  const sourceFile = await createSourceFile(fileUri);
+  const colorsObject = getColorsObject(sourceFile);
+  const oldProperty = findColorProperty(colorsObject, oldKey);
+
+  if (!oldProperty) {
+    throw new Error(`Color token "${oldKey}" was not found.`);
+  }
+
+  if (findColorProperty(colorsObject, newKey)) {
+    throw new Error(`Color token "${newKey}" already exists.`);
+  }
+
+  const initializer = oldProperty.getInitializer();
+  if (!initializer) {
+    throw new Error(`Color token "${oldKey}" does not have an initializer.`);
+  }
+
+  addNestedPropertyAssignment(colorsObject, newKey, initializer.getText());
+  oldProperty.remove();
+
+  await vscode.workspace.fs.writeFile(fileUri, Buffer.from(sourceFile.getFullText(), 'utf8'));
+}
+
 export function validateColorValue(value: string): boolean {
   const trimmed = value.trim();
   const hex = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
