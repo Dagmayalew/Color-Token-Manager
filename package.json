@@ -122,6 +122,10 @@
         "title": "Color Token Manager: Install Cursor MCP Config"
       },
       {
+        "command": "colorTokenManager.testMcpServer",
+        "title": "Color Token Manager: Test MCP Server"
+      },
+      {
         "command": "colorTokenManager.showMcpOutput",
         "title": "Color Token Manager: Show MCP Logs"
       }
@@ -186,6 +190,9 @@
         },
         {
           "command": "colorTokenManager.installCursorMcpConfig"
+        },
+        {
+          "command": "colorTokenManager.testMcpServer"
         },
         {
           "command": "colorTokenManager.showMcpOutput"

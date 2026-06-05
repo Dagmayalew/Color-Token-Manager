@@ -166,15 +166,17 @@ Color Token Manager can expose your workspace color-token graph to local AI codi
 Quick setup:
 
 1. Run **Color Token Manager: Connect AI Agent** or click **Connect AI Agent** in the manager.
-2. Pick your client: Cursor, Claude Code, Windsurf, or Custom MCP Client.
+2. Pick your client: Cursor, Claude Code, Windsurf, Codex, or Custom MCP Client.
 3. Reload the selected client.
 4. Ask the agent to read `colors://help` first.
+5. Run **Color Token Manager: Test MCP Server** if you want to verify the standalone MCP process before testing in the client chat.
 
 Client behavior:
 
 - Cursor: installs `.cursor/mcp.json` in the active workspace
 - Claude Code: installs `.mcp.json` in the active workspace
 - Windsurf: installs `~/.codeium/windsurf/mcp_config.json`
+- Codex: installs `~/.codex/config.toml`
 - Custom MCP Client: copies a standard JSON snippet to your clipboard
 
 The installer preserves any existing `mcpServers` entries and only adds or updates the `color-token-manager` server. Use **Copy MCP Client Config** if you prefer to paste the JSON manually.

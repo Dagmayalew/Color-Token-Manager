@@ -43,8 +43,8 @@ test('colorCodeActionProvider returns replacement quick fix when matching token 
   const range = new vscode.Range(new vscode.Position(0, 23), new vscode.Position(0, 32));
   const diagnostic = new vscode.Diagnostic(
     range,
-    "Hardcoded color #FF6B00 can be extracted to colors.ts.",
-    vscode.DiagnosticSeverity.Hint
+    'Hardcoded color #FF6B00 can be extracted to colors.ts.',
+    vscode.DiagnosticSeverity.Hint,
   );
   diagnostic.source = 'Color Token Manager';
   diagnostic.code = 'hardcoded-color';
@@ -59,7 +59,7 @@ test('colorCodeActionProvider returns replacement quick fix when matching token 
     document,
     range,
     context,
-    token
+    token,
   )) as vscode.CodeAction[];
 
   // We expect two actions:
@@ -68,7 +68,7 @@ test('colorCodeActionProvider returns replacement quick fix when matching token 
   assert.ok(actions);
   assert.equal(actions.length, 2);
 
-  const replaceAction = actions.find(a => a.title === 'Replace with colors.primary');
+  const replaceAction = actions.find((a) => a.title === 'Replace with colors.primary');
   assert.ok(replaceAction);
   assert.equal(replaceAction.kind, vscode.CodeActionKind.QuickFix);
   assert.equal(replaceAction.isPreferred, true);
@@ -78,7 +78,7 @@ test('colorCodeActionProvider returns replacement quick fix when matching token 
   assert.equal(replacements.length, 1);
   assert.equal(replacements[0].newText, 'colors.primary');
 
-  const extractAction = actions.find(a => a.title === 'Extract this color');
+  const extractAction = actions.find((a) => a.title === 'Extract this color');
   assert.ok(extractAction);
   assert.equal(extractAction.kind, vscode.CodeActionKind.QuickFix);
   assert.equal(extractAction.isPreferred, false);
@@ -112,8 +112,8 @@ test('colorCodeActionProvider returns only extraction action when matching token
   const range = new vscode.Range(new vscode.Position(0, 23), new vscode.Position(0, 32));
   const diagnostic = new vscode.Diagnostic(
     range,
-    "Hardcoded color #000000 can be extracted to colors.ts.",
-    vscode.DiagnosticSeverity.Hint
+    'Hardcoded color #000000 can be extracted to colors.ts.',
+    vscode.DiagnosticSeverity.Hint,
   );
   diagnostic.source = 'Color Token Manager';
   diagnostic.code = 'hardcoded-color';
@@ -128,7 +128,7 @@ test('colorCodeActionProvider returns only extraction action when matching token
     document,
     range,
     context,
-    token
+    token,
   )) as vscode.CodeAction[];
 
   // We expect only the extract action:

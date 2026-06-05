@@ -443,7 +443,7 @@ export function getMcpClientSetupSnippet(
   return JSON.stringify(getMcpClientConfig(workspacePath, serverPath, colorsFile), null, 2);
 }
 
-export type SupportedAiAgent = 'cursor' | 'claude-code' | 'windsurf' | 'custom';
+export type SupportedAiAgent = 'cursor' | 'claude-code' | 'windsurf' | 'codex' | 'custom';
 
 export function getAiAgentChoices(): Array<{
   id: SupportedAiAgent;
@@ -465,6 +465,11 @@ export function getAiAgentChoices(): Array<{
       id: 'windsurf',
       label: 'Windsurf',
       description: 'Install a global ~/.codeium/windsurf/mcp_config.json entry automatically.',
+    },
+    {
+      id: 'codex',
+      label: 'Codex',
+      description: 'Install a global ~/.codex/config.toml MCP entry automatically.',
     },
     {
       id: 'custom',
@@ -497,8 +502,50 @@ export function getMcpClientConfig(
   };
 }
 
+export function getCodexMcpConfigBlock(
+  workspacePath?: string,
+  serverPath?: string,
+  colorsFile = 'colors.ts',
+): string {
+  const config = getMcpClientConfig(workspacePath, serverPath, colorsFile).mcpServers[SERVER_NAME];
+  return [
+    `[mcp_servers."${SERVER_NAME}"]`,
+    `command = ${toTomlString(config.command)}`,
+    `args = ${toTomlStringArray(config.args)}`,
+  ].join('\n');
+}
+
+export function upsertCodexMcpConfigToml(
+  existing: string,
+  workspacePath?: string,
+  serverPath?: string,
+  colorsFile = 'colors.ts',
+): string {
+  const block = getCodexMcpConfigBlock(workspacePath, serverPath, colorsFile);
+  const normalized = existing.replace(/\r\n/g, '\n');
+  const pattern = /^\[mcp_servers\."color-token-manager"\]\n(?:[^[]*\n?)*/m;
+
+  if (pattern.test(normalized)) {
+    return `${normalized
+      .replace(pattern, `${block}\n`)
+      .replace(/\n{3,}/g, '\n\n')
+      .trimEnd()}\n`;
+  }
+
+  const prefix = normalized.trimEnd();
+  return prefix ? `${prefix}\n\n${block}\n` : `${block}\n`;
+}
+
 export function getStartMcpCommandTitle(): string {
   return 'Color Token Manager: Start MCP Server';
+}
+
+function toTomlString(value: string): string {
+  return JSON.stringify(value);
+}
+
+function toTomlStringArray(values: string[]): string {
+  return `[${values.map((value) => toTomlString(value)).join(', ')}]`;
 }
 
 function flattenColors(colors: Awaited<ReturnType<typeof readColors>>): Record<string, string> {

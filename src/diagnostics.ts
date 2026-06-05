@@ -359,7 +359,10 @@ export const colorCodeActionProvider: vscode.CodeActionProvider = {
     }
 
     // Always offer "Extract this color" command to open the preview panel
-    const extractAction = new vscode.CodeAction('Extract this color', vscode.CodeActionKind.QuickFix);
+    const extractAction = new vscode.CodeAction(
+      'Extract this color',
+      vscode.CodeActionKind.QuickFix,
+    );
     extractAction.diagnostics = [matchingDiagnostic];
     extractAction.isPreferred = matchingTokens.length === 0;
     extractAction.command = {

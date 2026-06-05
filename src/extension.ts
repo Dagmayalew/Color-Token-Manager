@@ -1,3 +1,4 @@
+import { spawn } from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
@@ -27,6 +28,7 @@ import {
   getAiAgentChoices,
   getMcpClientConfig,
   getMcpClientSetupSnippet,
+  upsertCodexMcpConfigToml,
 } from './mcpServer';
 import { getPreviewWebviewHtml } from './previewWebview';
 import { getResultsWebviewHtml } from './resultsWebview';
@@ -275,6 +277,17 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   );
 
+  const testMcpServerDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.testMcpServer',
+    async () => {
+      try {
+        await testMcpServer();
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
   const showMcpOutputDisposable = vscode.commands.registerCommand(
     'colorTokenManager.showMcpOutput',
     () => {
@@ -306,6 +319,7 @@ export function activate(context: vscode.ExtensionContext): void {
     copyMcpConfigDisposable,
     connectAiAgentDisposable,
     installCursorMcpConfigDisposable,
+    testMcpServerDisposable,
     showMcpOutputDisposable,
   );
 
@@ -428,6 +442,10 @@ async function handleWebviewMessage(message: {
       case 'installCursorMcpConfig':
         await installCursorMcpConfig();
         postStatus('Installed Cursor MCP config.');
+        break;
+      case 'testMcpServer':
+        await testMcpServer();
+        postStatus('MCP test completed.');
         break;
       case 'showMcpOutput':
         showMcpOutput();
@@ -768,6 +786,10 @@ async function connectAiAgent(): Promise<void> {
       await installWindsurfMcpConfig();
       await showAgentConnectedMessage('Windsurf');
       return;
+    case 'codex':
+      await installCodexMcpConfig();
+      await showAgentConnectedMessage('Codex');
+      return;
     case 'custom':
       await copyMcpClientConfig();
       void vscode.window.showInformationMessage(
@@ -803,6 +825,32 @@ async function installWindsurfMcpConfig(): Promise<void> {
     directoryUri: windsurfDir,
   });
   vscode.window.showInformationMessage('Installed Color Token Manager MCP config for Windsurf.');
+}
+
+async function installCodexMcpConfig(): Promise<void> {
+  const configContext = await getMcpConfigContext();
+  const codexDir = vscode.Uri.file(path.join(os.homedir(), '.codex'));
+  const configUri = vscode.Uri.joinPath(codexDir, 'config.toml');
+  const action = await vscode.window.showInformationMessage(
+    `Install Color Token Manager MCP in ${configUri.fsPath} for Codex?`,
+    { modal: true },
+    'Install',
+  );
+  if (action !== 'Install') {
+    return;
+  }
+
+  const existing = await readTextIfExists(configUri);
+  const next = upsertCodexMcpConfigToml(
+    existing,
+    configContext.workspacePath,
+    configContext.serverPath,
+    configContext.colorsFilePath,
+  );
+
+  await vscode.workspace.fs.createDirectory(codexDir);
+  await vscode.workspace.fs.writeFile(configUri, Buffer.from(next, 'utf8'));
+  vscode.window.showInformationMessage('Installed Color Token Manager MCP config for Codex.');
 }
 
 async function installMcpConfigFile(
@@ -855,9 +903,12 @@ async function installMcpConfigFile(
 async function showAgentConnectedMessage(clientName: string): Promise<void> {
   const action = await vscode.window.showInformationMessage(
     `${clientName} is configured for Color Token Manager. Reload ${clientName}, then ask it to read colors://help.`,
+    'Test MCP Server',
     'Show MCP Logs',
   );
-  if (action === 'Show MCP Logs') {
+  if (action === 'Test MCP Server') {
+    await testMcpServer();
+  } else if (action === 'Show MCP Logs') {
     showMcpOutput();
   }
 }
@@ -894,6 +945,183 @@ function showMcpOutput(): void {
   mcpOutput?.show();
 }
 
+async function testMcpServer(): Promise<void> {
+  const configContext = await getMcpConfigContext();
+  if (!configContext.serverPath) {
+    throw new Error('Could not resolve dist/mcp-server.js for this extension.');
+  }
+
+  const result = await runStandaloneMcpProbe(configContext.serverPath, [
+    '--workspace',
+    configContext.workspacePath,
+    '--colors-file',
+    configContext.colorsFilePath,
+  ]);
+
+  const tokenCount = Object.keys(result.flatTokens).length;
+  const summary = `MCP ready. Found ${tokenCount} tokens from ${result.help.colorsFile}.`;
+  mcpOutput?.appendLine(summary);
+  mcpOutput?.appendLine(`Workspace: ${result.help.workspace}`);
+  vscode.window.showInformationMessage(summary);
+}
+
+async function runStandaloneMcpProbe(
+  serverPath: string,
+  args: string[],
+): Promise<{
+  help: { workspace?: string; colorsFile?: string };
+  flatTokens: Record<string, string>;
+}> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('node', [serverPath, ...args], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let buffer = Buffer.alloc(0);
+    let stderr = '';
+    let settled = false;
+    let nextId = 1;
+    const pending = new Map<
+      number,
+      { resolve: (value: unknown) => void; reject: (error: Error) => void }
+    >();
+
+    const finish = (callback: () => void): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      callback();
+      child.kill();
+    };
+
+    const fail = (error: Error): void => {
+      finish(() => {
+        for (const entry of pending.values()) {
+          entry.reject(error);
+        }
+        reject(error);
+      });
+    };
+
+    child.stdout.on('data', (chunk: Buffer | string) => {
+      buffer = Buffer.concat([buffer, Buffer.from(chunk)]);
+
+      while (true) {
+        const headerEnd = buffer.indexOf('\r\n\r\n');
+        if (headerEnd === -1) {
+          return;
+        }
+
+        const header = buffer.slice(0, headerEnd).toString('utf8');
+        const lengthMatch = header.match(/content-length:\s*(\d+)/i);
+        if (!lengthMatch) {
+          fail(new Error('Invalid MCP frame from standalone server.'));
+          return;
+        }
+
+        const length = Number(lengthMatch[1]);
+        const bodyStart = headerEnd + 4;
+        const bodyEnd = bodyStart + length;
+        if (buffer.length < bodyEnd) {
+          return;
+        }
+
+        const body = buffer.slice(bodyStart, bodyEnd).toString('utf8');
+        buffer = buffer.slice(bodyEnd);
+
+        const message = JSON.parse(body) as {
+          id?: number;
+          result?: unknown;
+          error?: { message?: string };
+        };
+        if (typeof message.id !== 'number') {
+          continue;
+        }
+
+        const entry = pending.get(message.id);
+        if (!entry) {
+          continue;
+        }
+        pending.delete(message.id);
+
+        if (message.error) {
+          entry.reject(new Error(message.error.message || 'Unknown MCP server error.'));
+        } else {
+          entry.resolve(message.result);
+        }
+      }
+    });
+
+    child.stderr.on('data', (chunk: Buffer | string) => {
+      stderr += Buffer.from(chunk).toString('utf8');
+    });
+
+    child.once('error', (error) => fail(error));
+    child.once('exit', (code) => {
+      if (settled) {
+        return;
+      }
+      if (code === 0) {
+        fail(new Error('Standalone MCP server exited before the probe finished.'));
+      } else {
+        fail(
+          new Error(
+            stderr.trim() || `Standalone MCP server exited with code ${String(code ?? 'unknown')}.`,
+          ),
+        );
+      }
+    });
+
+    const send = (method: string, params?: unknown): Promise<unknown> => {
+      const id = nextId++;
+      const payload = JSON.stringify({
+        jsonrpc: '2.0',
+        id,
+        method,
+        ...(params === undefined ? {} : { params }),
+      });
+
+      child.stdin.write(`Content-Length: ${Buffer.byteLength(payload, 'utf8')}\r\n\r\n${payload}`);
+
+      return new Promise((resolveCall, rejectCall) => {
+        pending.set(id, { resolve: resolveCall, reject: rejectCall });
+      });
+    };
+
+    void (async () => {
+      try {
+        await send('initialize', {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: { name: 'color-token-manager', version: '0.2.1' },
+        });
+
+        const helpResult = (await send('resources/read', { uri: 'colors://help' })) as {
+          contents?: Array<{ text?: string }>;
+        };
+        const flatResult = (await send('resources/read', { uri: 'colors://tokens/flat' })) as {
+          contents?: Array<{ text?: string }>;
+        };
+
+        const helpText = helpResult.contents?.[0]?.text;
+        const flatText = flatResult.contents?.[0]?.text;
+        if (!helpText || !flatText) {
+          throw new Error('Standalone MCP server returned an incomplete probe response.');
+        }
+
+        finish(() =>
+          resolve({
+            help: JSON.parse(helpText) as { workspace?: string; colorsFile?: string },
+            flatTokens: JSON.parse(flatText) as Record<string, string>,
+          }),
+        );
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error(String(error)));
+      }
+    })();
+  });
+}
+
 async function readJsonObjectIfExists(uri: vscode.Uri): Promise<Record<string, unknown>> {
   try {
     const text = Buffer.from(await vscode.workspace.fs.readFile(uri))
@@ -912,6 +1140,17 @@ async function readJsonObjectIfExists(uri: vscode.Uri): Promise<Record<string, u
   } catch (error) {
     if (error instanceof Error && /ENOENT|not found|FileNotFound/i.test(error.message)) {
       return {};
+    }
+    throw error;
+  }
+}
+
+async function readTextIfExists(uri: vscode.Uri): Promise<string> {
+  try {
+    return Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+  } catch (error) {
+    if (error instanceof Error && /ENOENT|not found|FileNotFound/i.test(error.message)) {
+      return '';
     }
     throw error;
   }

@@ -3,7 +3,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, test } from 'node:test';
-import { ColorTokenMcpServer, getAiAgentChoices, getMcpClientSetupSnippet } from '../src/mcpServer';
+import {
+  ColorTokenMcpServer,
+  getAiAgentChoices,
+  getCodexMcpConfigBlock,
+  getMcpClientSetupSnippet,
+  upsertCodexMcpConfigToml,
+} from '../src/mcpServer';
 import * as vscode from 'vscode';
 
 const tempDirs: string[] = [];
@@ -77,11 +83,39 @@ test('AI agent choices include workspace and global installers', () => {
 
   assert.deepEqual(
     choices.map((choice) => choice.id),
-    ['cursor', 'claude-code', 'windsurf', 'custom'],
+    ['cursor', 'claude-code', 'windsurf', 'codex', 'custom'],
   );
   assert.ok(choices.some((choice) => choice.description.includes('.cursor/mcp.json')));
   assert.ok(choices.some((choice) => choice.description.includes('.mcp.json')));
   assert.ok(choices.some((choice) => choice.description.includes('mcp_config.json')));
+  assert.ok(choices.some((choice) => choice.description.includes('.codex/config.toml')));
+});
+
+test('Codex MCP config block uses node with workspace args', () => {
+  const block = getCodexMcpConfigBlock(
+    '/workspace/app',
+    '/extension/dist/mcp-server.js',
+    'src/theme/colors.ts',
+  );
+
+  assert.match(block, /\[mcp_servers\."color-token-manager"\]/);
+  assert.match(block, /command = "node"/);
+  assert.match(block, /"--workspace", "\/workspace\/app"/);
+  assert.match(block, /"--colors-file", "src\/theme\/colors.ts"/);
+});
+
+test('Codex MCP config block replaces an existing server block', () => {
+  const existing = `model = "gpt-5.5"\n\n[mcp_servers."color-token-manager"]\ncommand = "old"\nargs = ["old"]\n\n[features]\njs_repl = false\n`;
+  const next = upsertCodexMcpConfigToml(
+    existing,
+    '/workspace/app',
+    '/extension/dist/mcp-server.js',
+    'src/theme/colors.ts',
+  );
+
+  assert.match(next, /command = "node"/);
+  assert.doesNotMatch(next, /command = "old"/);
+  assert.match(next, /\[features\]\njs_repl = false/);
 });
 
 test('MCP extraction preview rejects paths outside the active workspace', async () => {

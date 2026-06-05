@@ -492,7 +492,7 @@ export function getWebviewHtml(
 
     <section id="pane-agent" class="content-pane">
       <h2>AI Agent Setup (MCP)</h2>
-      <p class="status-line">Enable Model Context Protocol to let AI tools like Cursor understand your design system through the extension.</p>
+      <p class="status-line">Enable Model Context Protocol to let AI tools like Cursor, Codex, Claude Code, or Windsurf understand your design system through the extension.</p>
       <div class="card" style="margin-bottom: 16px;">
         <h3>Client Configuration</h3>
         <div class="card-actions">
@@ -504,7 +504,8 @@ export function getWebviewHtml(
         <h3>Server Status</h3>
         <div id="mcpStatus" class="status-line">Server is idle</div>
         <div class="card-actions">
-          <button id="startMcpServer" type="button">Start MCP Server</button>
+          <button id="testMcpServer" type="button">Test MCP</button>
+          <button id="startMcpServer" class="ghost" type="button">Start MCP Server</button>
           <button id="showMcpOutput" class="ghost" type="button">Show Logs</button>
         </div>
       </div>
@@ -568,6 +569,7 @@ export function getWebviewHtml(
       connectAiAgent: 'connectAiAgent',
       installCursorMcpConfig: 'installCursorMcpConfig',
       copyMcpClientConfig: 'copyMcpClientConfig',
+      testMcpServer: 'testMcpServer',
       startMcpServer: 'startMcpServer',
       showMcpOutput: 'showMcpOutput',
     };
