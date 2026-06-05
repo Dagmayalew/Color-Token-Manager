@@ -67,12 +67,12 @@ npm run package
 ls -la color-token-manager-*.vsix
 ```
 
-Reference (v0.0.2, June 2026):
+Reference (v0.0.5, June 2026):
 
 | Artifact                             | Approx. size |
 | ------------------------------------ | ------------ |
-| `dist/extension.js` (minified)       | ~70 KB       |
-| `color-token-manager-<version>.vsix` | ~99 KB       |
+| `dist/extension.js` (minified)       | ~90 KB       |
+| `color-token-manager-<version>.vsix` | ~103 KB      |
 
 The VSIX includes `dist/extension.js`, `resources/icon.png`, `package.json`, `README.md`, changelog, maintainer docs, and license — not `src/`, tests, or generated test output (see `.vscodeignore`).
 
@@ -87,14 +87,14 @@ Output: `color-token-manager-<version>.vsix` in the repo root.
 Install:
 
 - VS Code: **Extensions: Install from VSIX...**, or
-- CLI: `code --install-extension ./color-token-manager-0.0.2.vsix --force`
+- CLI: `code --install-extension ./color-token-manager-0.0.5.vsix --force`
 
 ## Publish checklist
 
 Follow [VERSIONING.md](VERSIONING.md), then:
 
 1. Move `[Unreleased]` → new version in [CHANGELOG.md](CHANGELOG.md).
-2. Match `version` in `package.json` (current: **0.0.2** — docs/metadata; next feature milestone: **0.1.0** after tests + CI).
+2. Match `version` in `package.json` (current: **0.0.5**).
 3. `npm run compile` → `npm run package`
 4. Smoke-test the VSIX.
 5. `npx vsce publish patch` (or `minor` / `major`) with Marketplace credentials.

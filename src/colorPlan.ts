@@ -126,7 +126,12 @@ export function buildPreviewForDocument(
       if (autoReplaceExistingColors) {
         if (
           createAliases &&
-          shouldCreateAlias(existingToken, suggestedName, planner.knownTokenNames, planner.existingColors)
+          shouldCreateAlias(
+            existingToken,
+            suggestedName,
+            planner.knownTokenNames,
+            planner.existingColors,
+          )
         ) {
           const tokenName = getUniqueTokenName(suggestedName, planner.knownTokenNames);
           planner.knownTokenNames.add(tokenName);
@@ -255,7 +260,9 @@ export async function addGeneratedColorToken(
 }
 
 export function getProjectTokenName(suggestedName: string, existingColors: AppColor[]): string {
-  return shouldUseNestedTokenPaths(existingColors) ? suggestedName : flattenTokenPath(suggestedName);
+  return shouldUseNestedTokenPaths(existingColors)
+    ? suggestedName
+    : flattenTokenPath(suggestedName);
 }
 
 export function shouldUseNestedTokenPaths(existingColors: AppColor[]): boolean {
@@ -271,7 +278,11 @@ export function shouldUseNestedTokenPaths(existingColors: AppColor[]): boolean {
 
   const tokenLayerMode = configuration.get<'flat' | 'semanticFirst'>('tokenLayerMode', 'flat');
   const themePrefix = configuration.get<string>('themeTokenPrefix', '').trim();
-  return tokenLayerMode === 'semanticFirst' || Boolean(themePrefix) || existingColors.some((color) => color.key.includes('.'));
+  return (
+    tokenLayerMode === 'semanticFirst' ||
+    Boolean(themePrefix) ||
+    existingColors.some((color) => color.key.includes('.'))
+  );
 }
 
 function shouldUsePrimitiveSemanticLayer(tokenName: string): boolean {

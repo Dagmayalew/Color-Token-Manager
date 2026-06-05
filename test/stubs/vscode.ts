@@ -35,6 +35,9 @@ export const workspace = {
     async writeFile(uri: UriLike, content: Uint8Array): Promise<void> {
       fs.writeFileSync(uri.fsPath, content);
     },
+    async createDirectory(uri: UriLike): Promise<void> {
+      fs.mkdirSync(uri.fsPath, { recursive: true });
+    },
     async stat(uri: UriLike): Promise<{ type: number }> {
       if (!fs.existsSync(uri.fsPath)) {
         throw new Error(`ENOENT: ${uri.fsPath}`);
@@ -43,6 +46,9 @@ export const workspace = {
     },
   },
   workspaceFolders: [{ uri: { fsPath: '/workspace', scheme: 'file' } }],
+  getWorkspaceFolder(): { uri: UriLike } | undefined {
+    return workspace.workspaceFolders[0];
+  },
 };
 
 export namespace Uri {
@@ -63,6 +69,9 @@ export class WorkspaceEdit {
 }
 
 export namespace window {
+  export const activeTextEditor = undefined;
+  export const visibleTextEditors: unknown[] = [];
+
   export async function showQuickPick(): Promise<undefined> {
     return undefined;
   }
@@ -82,6 +91,29 @@ export namespace window {
   export async function showErrorMessage(): Promise<undefined> {
     return undefined;
   }
+
+  export async function showOpenDialog(): Promise<undefined> {
+    return undefined;
+  }
+
+  export function createStatusBarItem(): {
+    name?: string;
+    text?: string;
+    tooltip?: string;
+    command?: string;
+    show(): void;
+    dispose(): void;
+  } {
+    return {
+      show: () => undefined,
+      dispose: () => undefined,
+    };
+  }
+}
+
+export enum StatusBarAlignment {
+  Left = 1,
+  Right = 2,
 }
 
 export namespace commands {

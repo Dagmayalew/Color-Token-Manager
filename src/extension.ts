@@ -5,12 +5,14 @@ import {
   extractColorsFromCurrentFile,
   extractColorsFromFolder,
   isSupportedExtractionDocument,
+  previewColorsFromCurrentFile,
   previewColorsFromFolder,
   previewColorsFromSelection,
   type SelectionPreviewTarget,
 } from './colorExtractor';
 import {
   getConfiguredColorsFile,
+  getKnownColorsFile,
   pickColorsFile,
   readColors,
   updateColor,
@@ -20,6 +22,7 @@ import { warnDeprecatedImportStyleIfNeeded } from './importUtils';
 import { registerColorDiagnostics } from './diagnostics';
 import { getPreviewWebviewHtml } from './previewWebview';
 import { getResultsWebviewHtml } from './resultsWebview';
+import { runSetupWizard } from './setup';
 import { exportDesignTokens, renameTokenAcrossProject, showUnusedTokens } from './tokenTools';
 import { type AppColor, type FolderApplyResult, type FolderExtractionPreview } from './types';
 import { getWebviewHtml } from './webview';
@@ -32,6 +35,7 @@ let lastExtractionTarget: vscode.Uri | undefined;
 let lastSelectionTarget: SelectionPreviewTarget | undefined;
 let lastFolderPreview: FolderExtractionPreview | undefined;
 let watcher: vscode.FileSystemWatcher | undefined;
+let statusBarItem: vscode.StatusBarItem | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   warnDeprecatedImportStyleIfNeeded(context);
@@ -41,6 +45,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const activeEditorDisposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
     rememberExtractionTarget(editor);
+    void updateStatusBar();
   });
   const selectionDisposable = vscode.window.onDidChangeTextEditorSelection((event) => {
     rememberSelectionTarget(event.textEditor);
@@ -48,7 +53,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const openDisposable = vscode.commands.registerCommand('colorTokenManager.open', async () => {
     try {
-      const fileUri = await getConfiguredColorsFile(vscode.window.activeTextEditor?.document.uri);
+      const fileUri = await getColorsFileOrSetup(
+        context,
+        vscode.window.activeTextEditor?.document.uri,
+      );
       if (!fileUri) {
         return;
       }
@@ -74,6 +82,25 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     },
   );
+
+  const previewCurrentFileDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.previewFromCurrentFile',
+    async () => {
+      try {
+        await openCurrentFilePreview(context);
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
+  const setupDisposable = vscode.commands.registerCommand('colorTokenManager.setup', async () => {
+    try {
+      await handleSetup(context);
+    } catch (error) {
+      showError(error);
+    }
+  });
 
   const extractFolderDisposable = vscode.commands.registerCommand(
     'colorTokenManager.extractFromFolder',
@@ -197,15 +224,20 @@ export function activate(context: vscode.ExtensionContext): void {
     openDisposable,
     extractDisposable,
     extractFolderDisposable,
+    previewCurrentFileDisposable,
     previewFolderDisposable,
     previewSelectionDisposable,
     previewColorAtRangeDisposable,
     renameTokenDisposable,
     unusedTokensDisposable,
     exportTokensDisposable,
+    setupDisposable,
     pickDisposable,
     refreshDisposable,
   );
+
+  setupStatusBar(context);
+  void updateStatusBar();
 }
 
 export function deactivate(): void {
@@ -285,6 +317,9 @@ async function handleWebviewMessage(message: {
         await extractColorsFromFolder();
         await refreshWebview(selectedFile, 'Extracted colors from folder.');
         break;
+      case 'previewFromCurrentFile':
+        await openCurrentFilePreview();
+        break;
       case 'previewFromFolder':
         await openFolderPreview();
         break;
@@ -310,6 +345,61 @@ async function handleWebviewMessage(message: {
   }
 }
 
+async function getColorsFileOrSetup(
+  context: vscode.ExtensionContext,
+  contextUri?: vscode.Uri,
+): Promise<vscode.Uri | undefined> {
+  try {
+    const fileUri = await getConfiguredColorsFile(contextUri);
+    if (fileUri) {
+      return fileUri;
+    }
+  } catch (error) {
+    const action = await vscode.window.showWarningMessage(
+      error instanceof Error ? error.message : String(error),
+      'Run Setup',
+    );
+    if (action !== 'Run Setup') {
+      return undefined;
+    }
+  }
+
+  return handleSetup(context, contextUri, false);
+}
+
+async function handleSetup(
+  context: vscode.ExtensionContext,
+  contextUri = vscode.window.activeTextEditor?.document.uri,
+  showNextAction = true,
+): Promise<vscode.Uri | undefined> {
+  const fileUri = await runSetupWizard(contextUri);
+  if (!fileUri) {
+    return undefined;
+  }
+
+  selectedFile = fileUri;
+  setupWatcher(fileUri);
+  await updateStatusBar();
+
+  if (showNextAction) {
+    const action = await vscode.window.showInformationMessage(
+      'Color Token Manager is ready.',
+      'Open Manager',
+      'Preview Current File',
+    );
+
+    if (action === 'Open Manager') {
+      await openColorManager(context, fileUri);
+    }
+
+    if (action === 'Preview Current File') {
+      await openCurrentFilePreview(context);
+    }
+  }
+
+  return fileUri;
+}
+
 async function openSelectionPreview(
   context?: vscode.ExtensionContext,
   target?: SelectionPreviewTarget,
@@ -327,6 +417,15 @@ async function openFolderPreview(
   folderUri?: vscode.Uri,
 ): Promise<void> {
   const preview = await previewColorsFromFolder(folderUri);
+  if (!preview) {
+    return;
+  }
+
+  await openPreviewPanel(preview, context);
+}
+
+async function openCurrentFilePreview(context?: vscode.ExtensionContext): Promise<void> {
+  const preview = await previewColorsFromCurrentFile(lastExtractionTarget);
   if (!preview) {
     return;
   }
@@ -499,6 +598,7 @@ async function handlePickFileAgain(context?: vscode.ExtensionContext): Promise<v
   selectedFile = fileUri;
 
   await rememberColorsFile(fileUri);
+  await updateStatusBar();
 
   if (context) {
     await openColorManager(context, fileUri);
@@ -506,6 +606,32 @@ async function handlePickFileAgain(context?: vscode.ExtensionContext): Promise<v
     await refreshWebview(fileUri, 'Selected colors.ts file changed.');
     setupWatcher(fileUri);
   }
+}
+
+function setupStatusBar(context: vscode.ExtensionContext): void {
+  statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  statusBarItem.name = 'Color Token Manager';
+  statusBarItem.command = 'colorTokenManager.open';
+  context.subscriptions.push(statusBarItem);
+}
+
+async function updateStatusBar(): Promise<void> {
+  if (!statusBarItem) {
+    return;
+  }
+
+  const knownFile =
+    selectedFile ?? (await getKnownColorsFile(vscode.window.activeTextEditor?.document.uri));
+  if (knownFile) {
+    selectedFile = knownFile;
+  }
+
+  statusBarItem.text = knownFile ? '$(symbol-color) Color Tokens' : '$(symbol-color) Set up Colors';
+  statusBarItem.tooltip = knownFile
+    ? `Open Color Token Manager\n${knownFile.fsPath}`
+    : 'Set up Color Token Manager';
+  statusBarItem.command = knownFile ? 'colorTokenManager.open' : 'colorTokenManager.setup';
+  statusBarItem.show();
 }
 
 async function rememberColorsFile(fileUri: vscode.Uri): Promise<void> {

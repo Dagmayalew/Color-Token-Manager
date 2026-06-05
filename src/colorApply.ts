@@ -520,6 +520,53 @@ export async function previewColorsFromFolder(
   return buildFolderExtractionPreview(folderUri, colorsFileUri);
 }
 
+export async function previewColorsFromCurrentFile(
+  targetDocumentUri?: vscode.Uri,
+): Promise<FolderExtractionPreview | undefined> {
+  const document = await getTargetDocument(targetDocumentUri);
+  if (!document) {
+    throw new Error('Open a file before previewing hardcoded colors.');
+  }
+
+  if (!isSupportedExtractionDocument(document)) {
+    throw new Error(
+      `Open a supported source file (${getSupportedExtensionsMessage()}) before previewing hardcoded colors.`,
+    );
+  }
+
+  const colorsFileUri = await getConfiguredColorsFile(document.uri);
+  if (!colorsFileUri) {
+    return undefined;
+  }
+
+  const extractedColors = extractHardcodedColorsFromText(
+    document.getText(),
+    getExtractionOptions(document),
+  );
+  const existingColors = await readColors(colorsFileUri);
+  const filePreview = buildPreviewForDocument(
+    document,
+    extractedColors,
+    createPreviewPlanner(existingColors),
+  );
+
+  return {
+    id: `${Date.now()}`,
+    folderPath: vscode.workspace.asRelativePath(document.uri),
+    folderUri: document.uri.toString(),
+    colorsFilePath: vscode.workspace.asRelativePath(colorsFileUri),
+    filesScanned: 1,
+    filesWithColors: filePreview.replacements.length ? 1 : 0,
+    colorsFound: filePreview.replacements.length,
+    tokensToAdd: filePreview.replacements.filter(
+      (replacement) => replacement.action === 'add' || replacement.action === 'alias',
+    ).length,
+    tokensToReuse: filePreview.replacements.filter((replacement) => replacement.action === 'reuse')
+      .length,
+    files: filePreview.replacements.length ? [filePreview] : [],
+  };
+}
+
 export async function previewColorsFromSelection(
   target?: SelectionPreviewTarget,
 ): Promise<FolderExtractionPreview | undefined> {

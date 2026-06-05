@@ -6,6 +6,7 @@ export {
   extractColorsFromDocument,
   extractColorsFromFolder,
   isSupportedExtractionDocument,
+  previewColorsFromCurrentFile,
   previewColorsFromFolder,
   previewColorsFromSelection,
 } from './colorApply';

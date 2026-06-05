@@ -54,6 +54,25 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       background: var(--vscode-button-hoverBackground);
     }
 
+    button.secondary {
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+    }
+
+    button.secondary:hover {
+      background: var(--vscode-button-secondaryHoverBackground);
+    }
+
+    button.active {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 1px;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
     .open-button {
       min-height: 26px;
       padding: 2px 8px;
@@ -68,7 +87,7 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       display: grid;
       gap: 8px;
       grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      margin-bottom: 20px;
+      margin-bottom: 12px;
     }
 
     .metric {
@@ -87,6 +106,11 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       margin-bottom: 12px;
     }
 
+    .file[hidden],
+    .row[hidden] {
+      display: none;
+    }
+
     .file-header {
       align-items: center;
       border-bottom: 1px solid var(--vscode-panel-border);
@@ -103,8 +127,12 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       cursor: pointer;
       display: grid;
       gap: 10px;
-      grid-template-columns: 24px 70px minmax(100px, 160px) minmax(160px, 1fr) 80px auto;
+      grid-template-columns: 24px 68px minmax(120px, 0.75fr) minmax(220px, 1.25fr) 74px auto;
       padding: 8px 10px;
+    }
+
+    .row:hover {
+      background: var(--vscode-list-hoverBackground);
     }
 
     input[type="text"] {
@@ -147,6 +175,41 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       color: var(--vscode-editor-foreground);
     }
 
+    .preview-toolbar {
+      align-items: center;
+      border: 1px solid var(--vscode-panel-border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding: 10px;
+    }
+
+    .filter-group,
+    .selection-actions {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .toolbar-label,
+    .cell-label {
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .status-row {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
     .empty {
       border: 1px solid var(--vscode-panel-border);
       color: var(--vscode-descriptionForeground);
@@ -157,7 +220,40 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
     .status {
       color: var(--vscode-descriptionForeground);
       min-height: 20px;
-      margin-bottom: 12px;
+    }
+
+    .value-cell,
+    .replacement-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .inline-value {
+      align-items: center;
+      display: flex;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .swatch {
+      border: 1px solid var(--vscode-panel-border);
+      box-sizing: border-box;
+      flex: 0 0 auto;
+      height: 18px;
+      width: 18px;
+    }
+
+    code {
+      background: var(--vscode-textCodeBlock-background);
+      overflow-wrap: anywhere;
+      padding: 2px 4px;
+    }
+
+    .token-preview {
+      color: var(--vscode-descriptionForeground);
+      width: fit-content;
     }
   </style>
 </head>
@@ -172,12 +268,30 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
   </header>
 
   <section class="summary" id="summary"></section>
-  <div class="status" id="status"></div>
+  <section class="preview-toolbar" aria-label="Preview controls">
+    <div class="filter-group" id="filters">
+      <span class="toolbar-label">Show</span>
+      <button class="secondary active" data-filter="all" type="button">All</button>
+      <button class="secondary" data-filter="add" type="button">New</button>
+      <button class="secondary" data-filter="alias" type="button">Aliases</button>
+      <button class="secondary" data-filter="reuse" type="button">Reused</button>
+      <button class="secondary" data-filter="skip" type="button">Skipped</button>
+    </div>
+    <div class="selection-actions">
+      <button class="secondary" id="selectVisible" type="button">Select Visible</button>
+      <button class="secondary" id="deselectVisible" type="button">Deselect Visible</button>
+    </div>
+  </section>
+  <div class="status-row">
+    <div class="status" id="status"></div>
+    <div class="meta" id="selectionSummary"></div>
+  </div>
   <main id="files"></main>
 
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     const preview = ${payload};
+    let activeFilter = 'all';
 
     document.getElementById('folder').textContent = 'Folder: ' + preview.folderPath;
     document.getElementById('colorsFile').textContent = 'Colors file: ' + preview.colorsFilePath;
@@ -189,6 +303,21 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       }
 
       vscode.postMessage({ type: 'applyPreview', previewId: preview.id, preview: editedPreview });
+    });
+
+    document.querySelectorAll('button[data-filter]').forEach((button) => {
+      button.addEventListener('click', () => {
+        activeFilter = button.dataset.filter;
+        applyFilter();
+      });
+    });
+
+    document.getElementById('selectVisible').addEventListener('click', () => {
+      setVisibleRowsEnabled(true);
+    });
+
+    document.getElementById('deselectVisible').addEventListener('click', () => {
+      setVisibleRowsEnabled(false);
     });
 
     const summary = document.getElementById('summary');
@@ -233,8 +362,11 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       fileToggle.addEventListener('click', (event) => event.stopPropagation());
       fileToggle.addEventListener('change', () => {
         document.querySelectorAll('input[data-enabled-file-index="' + fileIndex + '"]').forEach((checkbox) => {
-          checkbox.checked = fileToggle.checked;
+          if (!checkbox.disabled) {
+            checkbox.checked = fileToggle.checked;
+          }
         });
+        updateSelectionSummary();
       });
       const headerText = document.createElement('span');
       headerText.textContent = file.filePath;
@@ -244,6 +376,8 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       file.replacements.forEach((replacement, replacementIndex) => {
         const row = document.createElement('div');
         row.className = 'row';
+        row.dataset.action = replacement.action;
+        row.dataset.fileIndex = String(fileIndex);
         row.addEventListener('click', () => {
           vscode.postMessage({
             type: 'openPreviewOccurrence',
@@ -255,19 +389,42 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
 
         const enabled = document.createElement('input');
         enabled.type = 'checkbox';
-        enabled.checked = replacement.enabled !== false;
+        enabled.checked = replacement.action !== 'skip' && replacement.enabled !== false;
+        enabled.disabled = replacement.action === 'skip';
         enabled.dataset.enabledFileIndex = String(fileIndex);
         enabled.dataset.enabledReplacementIndex = String(replacementIndex);
         enabled.setAttribute('aria-label', 'Apply ' + replacement.value + ' on line ' + replacement.line);
         enabled.addEventListener('click', (event) => event.stopPropagation());
-        enabled.addEventListener('change', () => syncFileToggle(fileIndex));
+        enabled.addEventListener('change', () => {
+          syncFileToggle(fileIndex);
+          updateSelectionSummary();
+        });
 
         const action = document.createElement('span');
         action.className = 'badge ' + replacement.action;
         action.textContent = replacement.action;
 
+        const valueCell = document.createElement('div');
+        valueCell.className = 'value-cell';
+        const valueLabel = document.createElement('span');
+        valueLabel.className = 'cell-label';
+        valueLabel.textContent = 'From';
+        const inlineValue = document.createElement('div');
+        inlineValue.className = 'inline-value';
+        const swatch = document.createElement('span');
+        swatch.className = 'swatch';
+        swatch.style.backgroundColor = replacement.value;
+        swatch.title = replacement.value;
         const value = document.createElement('code');
         value.textContent = replacement.value;
+        inlineValue.append(swatch, value);
+        valueCell.append(valueLabel, inlineValue);
+
+        const replacementCell = document.createElement('div');
+        replacementCell.className = 'replacement-cell';
+        const replacementLabel = document.createElement('span');
+        replacementLabel.className = 'cell-label';
+        replacementLabel.textContent = 'To';
 
         let token;
         if (replacement.action === 'add' || replacement.action === 'alias') {
@@ -281,11 +438,25 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
           token.addEventListener('click', (event) => event.stopPropagation());
         } else {
           token = document.createElement('code');
-          token.textContent = 'colors.' + replacement.tokenName;
+          token.textContent = getReplacementPreview(file.filePath, replacement, replacement.tokenName);
         }
+
+        const tokenPreview = document.createElement('code');
+        tokenPreview.className = 'token-preview';
+        tokenPreview.textContent = getReplacementPreview(file.filePath, replacement, replacement.tokenName);
 
         if (replacement.aliasOf) {
           token.title = 'Alias of colors.' + replacement.aliasOf;
+          tokenPreview.title = 'Alias of colors.' + replacement.aliasOf;
+        }
+
+        if (token.tagName === 'INPUT') {
+          token.addEventListener('input', () => {
+            tokenPreview.textContent = getReplacementPreview(file.filePath, replacement, token.value.trim());
+          });
+          replacementCell.append(replacementLabel, token, tokenPreview);
+        } else {
+          replacementCell.append(replacementLabel, token);
         }
 
         const line = document.createElement('span');
@@ -305,12 +476,15 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
           });
         });
 
-        row.append(enabled, action, value, token, line, open);
+        row.append(enabled, action, valueCell, replacementCell, line, open);
         section.appendChild(row);
       });
 
       files.appendChild(section);
     });
+
+    syncAllFileToggles();
+    applyFilter();
 
     function collectEditedPreview() {
       const next = JSON.parse(JSON.stringify(preview));
@@ -328,15 +502,19 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
         const replacementIndex = Number(input.dataset.replacementIndex);
         const tokenName = input.value.trim();
         const originalTokenName = input.dataset.originalTokenName;
+        const checkbox = document.querySelector(
+          'input[data-enabled-file-index="' + fileIndex + '"][data-enabled-replacement-index="' + replacementIndex + '"]'
+        );
+        const isEnabled = Boolean(checkbox && checkbox.checked);
 
-        if (!tokenNamePattern.test(tokenName)) {
+        if (isEnabled && !tokenNamePattern.test(tokenName)) {
           setStatus('Invalid token name: ' + tokenName);
           input.focus();
           return undefined;
         }
 
         next.files[fileIndex].replacements[replacementIndex].tokenName = tokenName;
-        if (originalTokenName && originalTokenName !== tokenName) {
+        if (isEnabled && originalTokenName && originalTokenName !== tokenName) {
           renamedTokens.set(originalTokenName, tokenName);
         }
       }
@@ -355,14 +533,104 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       return next;
     }
 
+    function applyFilter() {
+      document.querySelectorAll('button[data-filter]').forEach((button) => {
+        const isActive = button.dataset.filter === activeFilter;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-pressed', String(isActive));
+      });
+
+      document.querySelectorAll('.row[data-action]').forEach((row) => {
+        row.hidden = activeFilter !== 'all' && row.dataset.action !== activeFilter;
+      });
+
+      document.querySelectorAll('section.file').forEach((section) => {
+        const hasVisibleRows = Array.from(section.querySelectorAll('.row[data-action]')).some((row) => !row.hidden);
+        section.hidden = !hasVisibleRows;
+      });
+
+      updateSelectionSummary();
+    }
+
+    function setVisibleRowsEnabled(enabled) {
+      getVisibleRows().forEach((row) => {
+        const checkbox = row.querySelector('input[data-enabled-file-index]');
+        if (checkbox && !checkbox.disabled) {
+          checkbox.checked = enabled;
+        }
+      });
+
+      syncAllFileToggles();
+      updateSelectionSummary();
+    }
+
     function syncFileToggle(fileIndex) {
-      const rowCheckboxes = Array.from(document.querySelectorAll('input[data-enabled-file-index="' + fileIndex + '"]'));
+      const rowCheckboxes = Array.from(document.querySelectorAll('input[data-enabled-file-index="' + fileIndex + '"]'))
+        .filter((checkbox) => !checkbox.disabled);
       const fileToggle = document.querySelector('input[data-file-toggle-index="' + fileIndex + '"]');
       if (!fileToggle) {
         return;
       }
 
-      fileToggle.checked = rowCheckboxes.some((checkbox) => checkbox.checked);
+      if (!rowCheckboxes.length) {
+        fileToggle.checked = false;
+        fileToggle.indeterminate = false;
+        fileToggle.disabled = true;
+        return;
+      }
+
+      const selectedCount = rowCheckboxes.filter((checkbox) => checkbox.checked).length;
+      fileToggle.disabled = false;
+      fileToggle.checked = selectedCount > 0;
+      fileToggle.indeterminate = selectedCount > 0 && selectedCount < rowCheckboxes.length;
+    }
+
+    function syncAllFileToggles() {
+      preview.files.forEach((file, fileIndex) => syncFileToggle(fileIndex));
+    }
+
+    function updateSelectionSummary() {
+      const allCheckboxes = Array.from(document.querySelectorAll('input[data-enabled-file-index]'))
+        .filter((checkbox) => !checkbox.disabled);
+      const selectedCount = allCheckboxes.filter((checkbox) => checkbox.checked).length;
+      const visibleRows = getVisibleRows();
+      const visibleSelectableRows = visibleRows
+        .map((row) => row.querySelector('input[data-enabled-file-index]'))
+        .filter((checkbox) => checkbox && !checkbox.disabled);
+      const visibleSelectedCount = visibleSelectableRows.filter((checkbox) => checkbox.checked).length;
+      const summary = document.getElementById('selectionSummary');
+      summary.textContent =
+        selectedCount + ' selected' +
+        (visibleRows.length ? ' | ' + visibleSelectedCount + ' of ' + visibleSelectableRows.length + ' visible selectable' : '');
+
+      const apply = document.getElementById('apply');
+      apply.textContent = selectedCount === 1 ? 'Apply 1 Change' : 'Apply ' + selectedCount + ' Changes';
+      apply.disabled = selectedCount === 0;
+    }
+
+    function getVisibleRows() {
+      return Array.from(document.querySelectorAll('.row[data-action]')).filter((row) => !row.hidden);
+    }
+
+    function getReplacementPreview(filePath, replacement, tokenName) {
+      if (replacement.action === 'skip') {
+        return 'No edit';
+      }
+
+      const nextTokenName = tokenName || replacement.tokenName;
+      if (/\\.(css|scss|less)$/i.test(filePath)) {
+        return 'var(--color-' + toCssVariableSuffix(nextTokenName) + ')';
+      }
+
+      return 'colors.' + nextTokenName;
+    }
+
+    function toCssVariableSuffix(tokenName) {
+      return tokenName
+        .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+        .replace(/[^A-Za-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase();
     }
 
     function setStatus(message) {

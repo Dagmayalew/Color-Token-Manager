@@ -157,9 +157,7 @@ test('flat color projects do not receive nested semantic token paths', () => {
 });
 
 test('nested color projects keep nested semantic token paths', () => {
-  const existingColors: AppColor[] = [
-    { key: 'background.white', value: '#FFFFFF', type: 'hex' },
-  ];
+  const existingColors: AppColor[] = [{ key: 'background.white', value: '#FFFFFF', type: 'hex' }];
 
   assert.equal(getProjectTokenName('text.black', existingColors), 'text.black');
   assert.equal(shouldCreateAlias('black', 'text.black', new Set(['black']), existingColors), true);

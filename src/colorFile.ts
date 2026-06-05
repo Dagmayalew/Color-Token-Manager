@@ -1,3 +1,4 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { type AppColor } from './types';
 import { getContextUri, resolveConfiguredFileUri } from './workspaceUtils';
@@ -20,6 +21,8 @@ type ParsedProperty = {
   valueText: string;
   child?: ParsedObject;
 };
+
+export type ColorsFileTemplateMode = 'flat' | 'nested';
 
 export async function findColorFiles(): Promise<vscode.Uri[]> {
   if (!vscode.workspace.workspaceFolders?.length) {
@@ -130,6 +133,23 @@ export async function pickColorsFile(contextUri?: vscode.Uri): Promise<vscode.Ur
   });
 
   return selected?.uri ?? null;
+}
+
+export async function createColorsFile(
+  fileUri: vscode.Uri,
+  mode: ColorsFileTemplateMode = 'flat',
+): Promise<void> {
+  try {
+    await vscode.workspace.fs.stat(fileUri);
+    throw new Error(`A colors file already exists at ${fileUri.fsPath}.`);
+  } catch (error) {
+    if (error instanceof Error && !/ENOENT|not found|no such file/i.test(error.message)) {
+      throw error;
+    }
+  }
+
+  await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(fileUri.fsPath)));
+  await writeFileText(fileUri, getColorsFileTemplate(mode));
 }
 
 export async function readColors(fileUri: vscode.Uri): Promise<AppColor[]> {
@@ -750,7 +770,11 @@ function insertProperty(
   return `${text.slice(0, insertAt)}${propertyText}${text.slice(insertAt)}`;
 }
 
-function hasTrailingCommaAfterProperty(text: string, property: ParsedProperty, end: number): boolean {
+function hasTrailingCommaAfterProperty(
+  text: string,
+  property: ParsedProperty,
+  end: number,
+): boolean {
   let index = property.propertyEnd;
 
   while (index < end) {
@@ -904,4 +928,28 @@ function normalizeHex(value: string): string {
   }
 
   return hex;
+}
+
+function getColorsFileTemplate(mode: ColorsFileTemplateMode): string {
+  if (mode === 'nested') {
+    return `export const colors = {
+  brand: {
+    primary: 'rgba(44, 46, 123, 1)',
+  },
+  background: {
+    white: 'rgba(255, 255, 255, 1)',
+  },
+  text: {
+    black: 'rgba(0, 0, 0, 1)',
+  },
+} as const;
+`;
+  }
+
+  return `export const colors = {
+  primary: 'rgba(44, 46, 123, 1)',
+  black: 'rgba(0, 0, 0, 1)',
+  white: 'rgba(255, 255, 255, 1)',
+} as const;
+`;
 }

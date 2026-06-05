@@ -13,17 +13,21 @@ It can:
 - Extract hardcoded colors into reusable tokens
 - Replace hardcoded values with `colors.tokenName`
 - Preview current selection or folder-wide extraction before applying edits
-- Apply only selected preview rows with checkboxes
+- Filter preview rows by new, alias, reused, or skipped replacements
+- Apply only selected preview rows with checkboxes and select/deselect visible controls
 - Rename a token and update project references
 - Find unused tokens
 - Export tokens to JSON, CSS variables, Tailwind config, Figma Tokens, or W3C Design Tokens
 - Generate nested semantic token groups like `background.white`, `text.gray500`, and `button.background`
 - Optionally generate primitive + semantic token layers for design-system workflows
+- First-run setup wizard and status bar entry for faster onboarding
 
 ## Commands
 
 - Open Color Token Manager
+- Set Up Color Token Manager
 - Extract Colors From Current File
+- Preview Colors From Current File
 - Extract Colors From Folder
 - Preview Colors From Folder
 - Preview Colors From Selection
@@ -32,6 +36,19 @@ It can:
 - Export Design Tokens
 - Pick Colors File
 - Refresh Color Tokens
+
+## First Run
+
+Run **Set Up Color Token Manager** or click **Set up Colors** in the status bar.
+
+The setup wizard can:
+
+- Find an existing `colors.ts`
+- Create `src/theme/colors.ts`
+- Create a custom `colors.ts` path
+- Set `tokenPathMode` to auto, flat, or nested
+
+After setup, choose **Open Manager** or **Preview Current File** to continue safely.
 
 ## Editor Quick Fix
 
@@ -140,7 +157,7 @@ The older setting `colorTokenManager.importStyle` is deprecated and will be remo
 
 ## Safety
 
-Folder-wide extraction can change many files. Use **Preview Colors From Folder** first, review the proposed replacements, uncheck anything you do not want to apply, edit token names if needed, and then apply changes from the preview panel.
+Folder-wide extraction can change many files. Use **Preview Colors From Folder** first, filter the proposed replacements, uncheck anything you do not want to apply, edit token names if needed, and then apply selected changes from the preview panel.
 
 ## Run Locally
 
@@ -171,7 +188,7 @@ npm run package
 
 Install the generated `.vsix` from VS Code using **Extensions: Install from VSIX...**.
 
-The extension is intentionally lightweight: the minified bundle (`dist/extension.js`) is about **75 KB**; a packaged `.vsix` is about **99 KB** (includes icon, manifest, README, changelog, and license).
+The extension is intentionally lightweight: the minified bundle (`dist/extension.js`) is about **90 KB**; a packaged `.vsix` is about **103 KB** (includes icon, manifest, README, changelog, and license).
 
 ## Contributing
 

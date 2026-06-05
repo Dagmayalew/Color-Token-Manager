@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integration tests: `@vscode/test-electron` smoke suite for activation, configuration, and command registration.
 - Lint/format tooling: ESLint flat config, Prettier config, npm scripts, and CI checks.
 - Packaging hygiene: `.vscodeignore` excludes source, tests, generated test output, and local tooling from VSIX artifacts.
+- First-run setup wizard with existing-file selection, default/custom `colors.ts` creation, and token path mode setup.
+- Status bar entry for opening or setting up Color Token Manager.
+- **Preview Colors From Current File** command and manager button.
+- Preview panel filters for new, alias, reused, and skipped replacements.
+- Preview panel select/deselect visible controls, live selected counts, and clearer `From` / `To` replacement rows with color swatches.
 
 ### Deprecated
 

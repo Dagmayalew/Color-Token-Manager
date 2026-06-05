@@ -61,8 +61,16 @@
         "title": "Open Color Token Manager"
       },
       {
+        "command": "colorTokenManager.setup",
+        "title": "Set Up Color Token Manager"
+      },
+      {
         "command": "colorTokenManager.extractFromCurrentFile",
         "title": "Extract Colors From Current File"
+      },
+      {
+        "command": "colorTokenManager.previewFromCurrentFile",
+        "title": "Preview Colors From Current File"
       },
       {
         "command": "colorTokenManager.extractFromFolder",
@@ -104,7 +112,14 @@
           "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less"
         },
         {
+          "command": "colorTokenManager.setup"
+        },
+        {
           "command": "colorTokenManager.extractFromCurrentFile",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less"
+        },
+        {
+          "command": "colorTokenManager.previewFromCurrentFile",
           "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less"
         },
         {
@@ -150,6 +165,11 @@
           "command": "colorTokenManager.extractFromCurrentFile",
           "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less",
           "group": "navigation@51"
+        },
+        {
+          "command": "colorTokenManager.previewFromCurrentFile",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less",
+          "group": "navigation@52"
         }
       ],
       "explorer/context": [

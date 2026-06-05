@@ -182,6 +182,7 @@ export function getWebviewHtml(
     </div>
     <div class="actions">
       <button id="extract" type="button">Extract From Current File</button>
+      <button id="previewCurrentFile" type="button">Preview Current File</button>
       <button id="previewSelection" type="button">Preview Selection</button>
       <button id="previewFolder" type="button">Preview Folder</button>
       <button id="extractFolder" type="button">Extract From Folder</button>
@@ -218,6 +219,10 @@ export function getWebviewHtml(
 
     document.getElementById('extract').addEventListener('click', () => {
       vscode.postMessage({ type: 'extractFromCurrentFile' });
+    });
+
+    document.getElementById('previewCurrentFile').addEventListener('click', () => {
+      vscode.postMessage({ type: 'previewFromCurrentFile' });
     });
 
     document.getElementById('extractFolder').addEventListener('click', () => {

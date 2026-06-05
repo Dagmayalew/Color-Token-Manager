@@ -131,5 +131,8 @@ test('addColorToken keeps trailing-comment commas on the same property line', as
 
   const text = fs.readFileSync(filePath, 'utf8');
   assert.equal(text.includes('\n,\n'), false);
-  assert.match(text, /gradientDarkNavy: 'rgba\(24, 40, 72, 1\)', \/\/ #182848\n  shimmerBackground: 'rgba\(255,255,255,0\.4\)',/);
+  assert.match(
+    text,
+    /gradientDarkNavy: 'rgba\(24, 40, 72, 1\)', \/\/ #182848\n {2}shimmerBackground: 'rgba\(255,255,255,0\.4\)',/,
+  );
 });
