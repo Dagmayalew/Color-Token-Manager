@@ -10,6 +10,34 @@ const SOURCE_GLOB = '**/*.{ts,tsx,js,jsx}';
 const DEFAULT_EXCLUDE =
   '{**/node_modules/**,**/dist/**,**/build/**,**/coverage/**,**/ios/**,**/android/**}';
 
+export const EXPORT_FORMATS = ['JSON', 'CSS Variables', 'Tailwind Config', 'Figma Tokens', 'W3C Design Tokens'] as const;
+export type ExportFormat = (typeof EXPORT_FORMATS)[number];
+
+export function isExportFormat(value: unknown): value is ExportFormat {
+  return typeof value === 'string' && (EXPORT_FORMATS as readonly string[]).includes(value);
+}
+
+export function getExportExtension(format: ExportFormat): string {
+  switch (format) {
+    case 'CSS Variables':
+      return 'css';
+    case 'Tailwind Config':
+      return 'js';
+    case 'JSON':
+    case 'Figma Tokens':
+    case 'W3C Design Tokens':
+      return 'json';
+  }
+}
+
+export function toNestedObject(colors: AppColor[]): Record<string, unknown> {
+  const root: Record<string, unknown> = {};
+  for (const color of colors) {
+    setNestedValue(root, color.key, color.value);
+  }
+  return root;
+}
+
 export async function renameTokenAcrossProject(): Promise<void> {
   const colorsFileUri = await getConfiguredColorsFile(vscode.window.activeTextEditor?.document.uri);
   if (!colorsFileUri) {
@@ -83,6 +111,15 @@ export async function showUnusedTokens(): Promise<void> {
     return;
   }
 
+  const { unused, total } = await findUnusedColors(colorsFileUri);
+  const content = buildUnusedTokenReport(colorsFileUri, unused, total);
+  const document = await vscode.workspace.openTextDocument({ content, language: 'markdown' });
+  await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
+}
+
+export async function findUnusedColors(
+  colorsFileUri: vscode.Uri,
+): Promise<{ unused: AppColor[]; total: number }> {
   const colors = await readColors(colorsFileUri);
   const files = await findProjectSourceFiles(colorsFileUri);
   const used = new Set<string>();
@@ -96,10 +133,10 @@ export async function showUnusedTokens(): Promise<void> {
     }
   }
 
-  const unused = colors.filter((color) => !used.has(color.key));
-  const content = buildUnusedTokenReport(colorsFileUri, unused, colors.length);
-  const document = await vscode.workspace.openTextDocument({ content, language: 'markdown' });
-  await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
+  return {
+    unused: colors.filter((color) => !used.has(color.key)),
+    total: colors.length,
+  };
 }
 
 export async function exportDesignTokens(): Promise<void> {
@@ -115,13 +152,7 @@ export async function exportDesignTokens(): Promise<void> {
   }
 
   const format = await vscode.window.showQuickPick(
-    [
-      { label: 'JSON', extension: 'json' },
-      { label: 'CSS Variables', extension: 'css' },
-      { label: 'Tailwind Config', extension: 'js' },
-      { label: 'Figma Tokens', extension: 'json' },
-      { label: 'W3C Design Tokens', extension: 'json' },
-    ],
+    EXPORT_FORMATS.map((label) => ({ label, extension: getExportExtension(label) })),
     { placeHolder: 'Choose export format' },
   );
   if (!format) {
@@ -149,7 +180,7 @@ export async function exportDesignTokens(): Promise<void> {
   );
 }
 
-function serializeTokens(colors: AppColor[], format: string): string {
+export function serializeTokens(colors: AppColor[], format: string): string {
   if (format === 'CSS Variables') {
     return `:root {\n${colors.map((color) => `  --${color.key.replace(/\./g, '-')}: ${color.value};`).join('\n')}\n}\n`;
   }
@@ -167,14 +198,6 @@ function serializeTokens(colors: AppColor[], format: string): string {
   }
 
   return JSON.stringify(toNestedObject(colors), null, 2) + '\n';
-}
-
-function toNestedObject(colors: AppColor[]): Record<string, unknown> {
-  const root: Record<string, unknown> = {};
-  for (const color of colors) {
-    setNestedValue(root, color.key, color.value);
-  }
-  return root;
 }
 
 function toReferenceTokens(colors: AppColor[], format: 'figma' | 'w3c'): Record<string, unknown> {

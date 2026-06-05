@@ -107,6 +107,17 @@ export function buildPreviewForDocument(
   extractedColors: ExtractedColor[],
   planner: PreviewPlanner,
 ): FileExtractionPreview {
+  return buildPreviewForUri(document.uri, extractedColors, planner, (offset) =>
+    document.positionAt(offset),
+  );
+}
+
+export function buildPreviewForUri(
+  uri: vscode.Uri,
+  extractedColors: ExtractedColor[],
+  planner: PreviewPlanner,
+  positionAt: (offset: number) => { line: number; character: number },
+): FileExtractionPreview {
   const autoReplaceExistingColors = vscode.workspace
     .getConfiguration('colorTokenManager')
     .get<boolean>('autoReplaceExistingColors', true);
@@ -142,7 +153,7 @@ export function buildPreviewForDocument(
             action: 'alias',
             enabled: true,
             aliasOf: existingToken,
-            line: document.positionAt(extracted.start).line + 1,
+            line: positionAt(extracted.start).line + 1,
             start: extracted.start,
           });
         } else {
@@ -151,7 +162,7 @@ export function buildPreviewForDocument(
             tokenName: existingToken,
             action: 'reuse',
             enabled: true,
-            line: document.positionAt(extracted.start).line + 1,
+            line: positionAt(extracted.start).line + 1,
             start: extracted.start,
           });
         }
@@ -161,7 +172,7 @@ export function buildPreviewForDocument(
           tokenName: existingToken,
           action: 'skip',
           enabled: true,
-          line: document.positionAt(extracted.start).line + 1,
+          line: positionAt(extracted.start).line + 1,
           start: extracted.start,
         });
       }
@@ -176,14 +187,14 @@ export function buildPreviewForDocument(
       tokenName,
       action: 'add',
       enabled: true,
-      line: document.positionAt(extracted.start).line + 1,
+      line: positionAt(extracted.start).line + 1,
       start: extracted.start,
     });
   }
 
   return {
-    filePath: vscode.workspace.asRelativePath(document.uri),
-    fileUri: document.uri.toString(),
+    filePath: vscode.workspace.asRelativePath(uri),
+    fileUri: uri.toString(),
     replacements,
   };
 }

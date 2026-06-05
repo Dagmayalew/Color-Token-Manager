@@ -20,6 +20,7 @@ import {
 } from './colorFile';
 import { warnDeprecatedImportStyleIfNeeded } from './importUtils';
 import { registerColorDiagnostics } from './diagnostics';
+import { ColorTokenMcpServer, createMcpStatusBarItem, getMcpClientSetupSnippet } from './mcpServer';
 import { getPreviewWebviewHtml } from './previewWebview';
 import { getResultsWebviewHtml } from './resultsWebview';
 import { runSetupWizard } from './setup';
@@ -36,8 +37,13 @@ let lastSelectionTarget: SelectionPreviewTarget | undefined;
 let lastFolderPreview: FolderExtractionPreview | undefined;
 let watcher: vscode.FileSystemWatcher | undefined;
 let statusBarItem: vscode.StatusBarItem | undefined;
+let mcpStatusBarItem: vscode.StatusBarItem | undefined;
+let mcpServer: ColorTokenMcpServer | undefined;
+let mcpOutput: vscode.OutputChannel | undefined;
+let extensionRootPath: string | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
+  extensionRootPath = context.extensionUri.fsPath;
   warnDeprecatedImportStyleIfNeeded(context);
   registerColorDiagnostics(context);
   rememberExtractionTarget(vscode.window.activeTextEditor);
@@ -218,6 +224,39 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   );
 
+  const startMcpDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.startMcpServer',
+    () => {
+      try {
+        startMcpServer();
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
+  const copyMcpConfigDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.copyMcpClientConfig',
+    async () => {
+      try {
+        await copyMcpClientConfig();
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
+  const showMcpOutputDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.showMcpOutput',
+    () => {
+      try {
+        showMcpOutput();
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
   context.subscriptions.push(
     activeEditorDisposable,
     selectionDisposable,
@@ -234,14 +273,21 @@ export function activate(context: vscode.ExtensionContext): void {
     setupDisposable,
     pickDisposable,
     refreshDisposable,
+    startMcpDisposable,
+    copyMcpConfigDisposable,
+    showMcpOutputDisposable,
   );
 
   setupStatusBar(context);
+  setupMcpStatusBar(context);
+  startMcpServer();
   void updateStatusBar();
 }
 
 export function deactivate(): void {
   watcher?.dispose();
+  mcpServer?.dispose();
+  mcpOutput?.dispose();
 }
 
 async function openColorManager(
@@ -335,6 +381,17 @@ async function handleWebviewMessage(message: {
         break;
       case 'exportTokens':
         await exportDesignTokens();
+        break;
+      case 'startMcpServer':
+        startMcpServer();
+        postStatus('Color MCP server is running.');
+        break;
+      case 'copyMcpClientConfig':
+        await copyMcpClientConfig();
+        postStatus('Copied MCP setup snippets.');
+        break;
+      case 'showMcpOutput':
+        showMcpOutput();
         break;
       default:
         break;
@@ -613,6 +670,48 @@ function setupStatusBar(context: vscode.ExtensionContext): void {
   statusBarItem.name = 'Color Token Manager';
   statusBarItem.command = 'colorTokenManager.open';
   context.subscriptions.push(statusBarItem);
+}
+
+function setupMcpStatusBar(context: vscode.ExtensionContext): void {
+  mcpStatusBarItem = createMcpStatusBarItem();
+  context.subscriptions.push(mcpStatusBarItem);
+}
+
+function startMcpServer(): void {
+  mcpOutput ??= vscode.window.createOutputChannel('Color Token Manager MCP');
+
+  if (!mcpServer) {
+    mcpServer = new ColorTokenMcpServer(mcpOutput);
+  }
+
+  mcpServer.start();
+  mcpStatusBarItem?.show();
+}
+
+async function copyMcpClientConfig(): Promise<void> {
+  const contextUri = vscode.window.activeTextEditor?.document.uri;
+  const colorsFileUri = await getKnownColorsFile(contextUri);
+  const workspaceFolder =
+    (colorsFileUri && vscode.workspace.getWorkspaceFolder(colorsFileUri)) ??
+    (contextUri && vscode.workspace.getWorkspaceFolder(contextUri)) ??
+    vscode.workspace.workspaceFolders?.[0];
+  const workspacePath = workspaceFolder?.uri.fsPath;
+  const colorsFilePath =
+    colorsFileUri && workspaceFolder
+      ? path.relative(workspaceFolder.uri.fsPath, colorsFileUri.fsPath).replace(/\\/g, '/')
+      : 'colors.ts';
+  const serverPath = extensionRootPath
+    ? path.join(extensionRootPath, 'dist', 'mcp-server.js')
+    : undefined;
+  await vscode.env.clipboard.writeText(
+    getMcpClientSetupSnippet(workspacePath, serverPath, colorsFilePath),
+  );
+  vscode.window.showInformationMessage('Copied Color Token Manager MCP setup snippets.');
+}
+
+function showMcpOutput(): void {
+  startMcpServer();
+  mcpOutput?.show();
 }
 
 async function updateStatusBar(): Promise<void> {

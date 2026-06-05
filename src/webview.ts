@@ -68,6 +68,33 @@ export function getWebviewHtml(
       justify-content: flex-end;
     }
 
+    .agent-panel {
+      align-items: center;
+      border: 1px solid var(--vscode-panel-border);
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding: 10px 12px;
+    }
+
+    .agent-panel strong {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .agent-panel span {
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .agent-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
     input {
       background: var(--vscode-input-background);
       border: 1px solid var(--vscode-input-border);
@@ -158,7 +185,8 @@ export function getWebviewHtml(
 
     @media (max-width: 680px) {
       header,
-      .toolbar {
+      .toolbar,
+      .agent-panel {
         align-items: stretch;
         flex-direction: column;
       }
@@ -193,6 +221,18 @@ export function getWebviewHtml(
       <button id="refresh" type="button">Refresh</button>
     </div>
   </header>
+
+  <section class="agent-panel" aria-label="AI agent MCP controls">
+    <div>
+      <strong>AI Agent MCP</strong>
+      <span>Expose tokens, unused reports, exports, extraction previews, names, and contrast checks.</span>
+    </div>
+    <div class="agent-actions">
+      <button id="startMcpServer" type="button">Start MCP</button>
+      <button id="copyMcpClientConfig" type="button">Copy Client Config</button>
+      <button id="showMcpOutput" type="button">Show Logs</button>
+    </div>
+  </section>
 
   <div class="toolbar">
     <input id="search" type="search" placeholder="Search tokens" aria-label="Search tokens">
@@ -247,6 +287,18 @@ export function getWebviewHtml(
 
     document.getElementById('exportTokens').addEventListener('click', () => {
       vscode.postMessage({ type: 'exportTokens' });
+    });
+
+    document.getElementById('startMcpServer').addEventListener('click', () => {
+      vscode.postMessage({ type: 'startMcpServer' });
+    });
+
+    document.getElementById('copyMcpClientConfig').addEventListener('click', () => {
+      vscode.postMessage({ type: 'copyMcpClientConfig' });
+    });
+
+    document.getElementById('showMcpOutput').addEventListener('click', () => {
+      vscode.postMessage({ type: 'showMcpOutput' });
     });
 
     search.addEventListener('input', render);

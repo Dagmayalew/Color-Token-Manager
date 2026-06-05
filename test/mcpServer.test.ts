@@ -1,0 +1,182 @@
+import assert from 'node:assert/strict';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { afterEach, beforeEach, test } from 'node:test';
+import { ColorTokenMcpServer, getMcpClientSetupSnippet } from '../src/mcpServer';
+import * as vscode from 'vscode';
+
+const tempDirs: string[] = [];
+
+beforeEach(() => {
+  tempDirs.length = 0;
+  (vscode as unknown as { __resetTestConfig(): void }).__resetTestConfig();
+});
+
+afterEach(() => {
+  for (const dir of tempDirs) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('MCP tokens resource returns nested and flat tokens', async () => {
+  const { server } = setupWorkspace();
+
+  const resource = (await server.readResource('colors://tokens')) as {
+    tokens: { background: { white: string } };
+    flat: Record<string, string>;
+  };
+
+  assert.equal(resource.tokens.background.white, '#FFFFFF');
+  assert.equal(resource.flat['text.black'], '#000000');
+});
+
+test('MCP export resources reuse token serializers', async () => {
+  const { server } = setupWorkspace();
+
+  const resource = (await server.readResource('colors://exports/css')) as { content: string };
+
+  assert.match(resource.content, /--background-white: #FFFFFF;/);
+  assert.match(resource.content, /--text-black: #000000;/);
+});
+
+test('MCP help resource gives agents the safe workflow', async () => {
+  const { server } = setupWorkspace();
+
+  const resource = (await server.readResource('colors://help')) as {
+    safeWorkflow: string[];
+    examplePrompts: string[];
+  };
+
+  assert.ok(resource.safeWorkflow.some((item) => item.includes('dryRun')));
+  assert.ok(resource.examplePrompts.some((item) => item.includes('unused color tokens')));
+});
+
+test('MCP client setup snippet includes client names and examples', () => {
+  const snippet = getMcpClientSetupSnippet(
+    '/workspace/app',
+    '/extension/dist/mcp-server.js',
+    'src/theme/colors.ts',
+  );
+  const config = JSON.parse(snippet) as {
+    mcpServers: { 'color-token-manager': { command: string; args: string[] } };
+  };
+
+  assert.equal(typeof config.mcpServers['color-token-manager'].command, 'string');
+  assert.deepEqual(config.mcpServers['color-token-manager'].args, [
+    '/extension/dist/mcp-server.js',
+    '--workspace',
+    '/workspace/app',
+    '--colors-file',
+    'src/theme/colors.ts',
+  ]);
+});
+
+test('MCP extraction preview rejects paths outside the active workspace', async () => {
+  const { server } = setupWorkspace();
+
+  await assert.rejects(
+    () => server.callTool('extract_from_file', { dryRun: true, path: '../outside.tsx' }),
+    /escapes the active workspace/,
+  );
+});
+
+test('MCP tools require explicit dryRun', async () => {
+  const { server } = setupWorkspace();
+
+  await assert.rejects(
+    () => server.callTool('suggest_token_name', { context: 'backgroundColor: "#FFFFFF"' }),
+    /dryRun boolean/,
+  );
+});
+
+test('MCP extraction preview returns planned replacements for a source file', async () => {
+  const { server } = setupWorkspace({
+    source: `export const Button = { backgroundColor: '#FFFFFF', color: '#111111' };`,
+  });
+
+  const result = await server.callTool('extract_from_file', {
+    dryRun: true,
+    path: 'src/Button.tsx',
+  });
+  const payload = JSON.parse(result.content[0].text) as {
+    colorsFound: number;
+    tokensToReuse: number;
+    preview: { replacements: Array<{ action: string; tokenName: string }> };
+  };
+
+  assert.equal(payload.colorsFound, 2);
+  assert.equal(payload.tokensToReuse, 1);
+  assert.equal(payload.preview.replacements[0].tokenName, 'background.white');
+});
+
+test('MCP suggest_token_name uses the existing naming strategy', async () => {
+  const { server } = setupWorkspace();
+
+  const result = await server.callTool('suggest_token_name', {
+    dryRun: true,
+    context: `const styles = { button: { backgroundColor: '#FF6B00' } };`,
+  });
+  const payload = JSON.parse(result.content[0].text) as { candidates: string[] };
+
+  assert.ok(payload.candidates.length >= 1);
+  assert.match(payload.candidates[0], /button|background|orange/i);
+});
+
+test('MCP get_contrast returns WCAG pass and fail details', async () => {
+  const { server } = setupWorkspace();
+
+  const result = await server.callTool('get_contrast', {
+    dryRun: true,
+    tokenPath: 'text.black',
+    againstTokenPath: 'background.white',
+  });
+  const payload = JSON.parse(result.content[0].text) as {
+    ratio: number;
+    wcag: { AA: { normalText: boolean }; AAA: { normalText: boolean } };
+  };
+
+  assert.equal(payload.ratio, 21);
+  assert.equal(payload.wcag.AA.normalText, true);
+  assert.equal(payload.wcag.AAA.normalText, true);
+});
+
+function setupWorkspace(options: { source?: string } = {}): {
+  root: string;
+  server: ColorTokenMcpServer;
+} {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-mcp-'));
+  tempDirs.push(root);
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'colors.ts'),
+    `export const colors = {
+  background: {
+    white: '#FFFFFF',
+  },
+  text: {
+    black: '#000000',
+  },
+  brand: {
+    orange: '#FF6B00',
+  },
+} as const;
+`,
+  );
+  fs.writeFileSync(
+    path.join(root, 'src', 'Button.tsx'),
+    options.source ?? `export const Button = { backgroundColor: '#FF6B00' };`,
+  );
+
+  (vscode as unknown as { __setWorkspaceRoot(value: string): void }).__setWorkspaceRoot(root);
+  (vscode as unknown as { __setTestConfig(values: Record<string, unknown>): void }).__setTestConfig(
+    {
+      colorsFilePath: 'colors.ts',
+    },
+  );
+
+  return {
+    root,
+    server: new ColorTokenMcpServer(vscode.window.createOutputChannel('test')),
+  };
+}

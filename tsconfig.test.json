@@ -18,7 +18,9 @@
     "src/colorPlan.ts",
     "src/colorApply.ts",
     "src/colorExtractor.ts",
+    "src/mcpServer.ts",
     "src/importUtils.ts",
+    "src/tokenTools.ts",
     "src/types.ts",
     "test/**/*.ts"
   ],

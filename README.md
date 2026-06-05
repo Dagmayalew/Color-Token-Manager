@@ -159,6 +159,39 @@ The older setting `colorTokenManager.importStyle` is deprecated and will be remo
 
 Folder-wide extraction can change many files. Use **Preview Colors From Folder** first, filter the proposed replacements, uncheck anything you do not want to apply, edit token names if needed, and then apply selected changes from the preview panel.
 
+## MCP Server
+
+Color Token Manager can expose your workspace color-token graph to local AI coding agents over MCP stdio. The extension includes a small standalone MCP process (`dist/mcp-server.js`) that clients such as Cursor can spawn directly.
+
+Quick setup:
+
+1. Run **Color Token Manager: Copy MCP Client Config** or click **Copy Client Config** in the manager.
+2. Paste the copied JSON into Cursor MCP settings, for example `.cursor/mcp.json`.
+3. Reload the client.
+4. Ask the agent to read `colors://help` first.
+
+Resources:
+
+- `colors://help` — agent workflow, safety rules, resources, tools, and example prompts
+- `colors://tokens` — full token tree plus flat token metadata
+- `colors://tokens/flat` — `{ "path.to.token": "#FFFFFF" }`
+- `colors://tokens/unused` — unused token report
+- `colors://exports/{format}` — `json`, `css`, `tailwind`, `w3c`, or `figma`
+
+Tools:
+
+- `extract_from_file({ dryRun, path })`
+- `suggest_token_name({ dryRun, context, colorValue? })`
+- `get_contrast({ dryRun, tokenPath, againstTokenPath })`
+
+Every tool requires an explicit `dryRun` boolean. Agent paths are resolved against the active workspace folder and rejected if they escape it.
+
+Example prompts for an MCP-capable coding agent:
+
+- "List unused color tokens and suggest which ones can be removed."
+- "Suggest a name for the `backgroundColor` in `src/components/Button.tsx`."
+- "Check contrast for `colors.text.black` against `colors.background.white`."
+
 ## Run Locally
 
 ```bash

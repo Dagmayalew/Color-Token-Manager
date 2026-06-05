@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- MCP stdio server for AI coding agents, exposing color-token resources, export resources, extraction previews, token-name suggestions, and WCAG contrast checks.
+- MCP onboarding helpers: `colors://help`, copyable client setup snippets, manager webview controls, and status-bar log access.
+- Standalone `dist/mcp-server.js` MCP stdio process for Cursor, Claude Code, Windsurf, and other clients that spawn local MCP servers.
 - Unit test harness: `npm test` (Node `node:test`, `tsconfig.test.json`, `out-test/`).
 - Unit tests for `colorUtils`, `colorFile` (validate, normalize, read, update), `colorExtractor` (scan, comments, imports, embedded colors); `test/fixtures/colors/` and vscode stub for tests.
 - Shared `globToRegExp` in `src/globUtils.ts` with unit tests (replaces duplicate helpers in `colorExtractor` and `tokenTools`).
