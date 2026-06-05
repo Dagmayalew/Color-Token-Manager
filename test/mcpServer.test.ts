@@ -118,6 +118,21 @@ test('Codex MCP config block replaces an existing server block', () => {
   assert.match(next, /\[features\]\njs_repl = false/);
 });
 
+test('Codex MCP config block removes stray array lines from a broken previous write', () => {
+  const existing = `model = "gpt-5.5"\n\n[mcp_servers."color-token-manager"]\ncommand = "node"\nargs = ["/old/server.js"]\n["/old/server.js", "--workspace", "/workspace/one"]\n["/old/server.js", "--workspace", "/workspace/two"]\n\n[features]\njs_repl = false\n`;
+  const next = upsertCodexMcpConfigToml(
+    existing,
+    '/workspace/app',
+    '/extension/dist/mcp-server.js',
+    'src/theme/colors.ts',
+  );
+
+  assert.equal((next.match(/\[mcp_servers\."color-token-manager"\]/g) ?? []).length, 1);
+  assert.equal((next.match(/^args = /gm) ?? []).length, 1);
+  assert.doesNotMatch(next, /^\["\/old\/server\.js"/m);
+  assert.match(next, /\[features\]\njs_repl = false/);
+});
+
 test('MCP extraction preview rejects paths outside the active workspace', async () => {
   const { server } = setupWorkspace();
 

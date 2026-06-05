@@ -523,11 +523,26 @@ export function upsertCodexMcpConfigToml(
 ): string {
   const block = getCodexMcpConfigBlock(workspacePath, serverPath, colorsFile);
   const normalized = existing.replace(/\r\n/g, '\n');
-  const pattern = /^\[mcp_servers\."color-token-manager"\]\n(?:[^[]*\n?)*/m;
+  const lines = normalized.split('\n');
+  const startIndex = lines.findIndex((line) => line.trim() === `[mcp_servers."${SERVER_NAME}"]`);
 
-  if (pattern.test(normalized)) {
-    return `${normalized
-      .replace(pattern, `${block}\n`)
+  if (startIndex !== -1) {
+    let endIndex = startIndex + 1;
+    while (endIndex < lines.length) {
+      const trimmed = lines[endIndex].trim();
+      if (trimmed.startsWith('[') && !trimmed.startsWith('["')) {
+        break;
+      }
+      endIndex += 1;
+    }
+
+    const nextLines = [
+      ...lines.slice(0, startIndex),
+      ...block.split('\n'),
+      ...lines.slice(endIndex),
+    ];
+    return `${nextLines
+      .join('\n')
       .replace(/\n{3,}/g, '\n\n')
       .trimEnd()}\n`;
   }
