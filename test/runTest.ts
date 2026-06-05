@@ -22,7 +22,7 @@ async function main(): Promise<void> {
     // Pin a VS Code version that matches the engine declared in package.json
     // (^1.90.0). Using `stable` would also work but pinning avoids surprise
     // breakage when the next VS Code release ships.
-    const vscodeVersion = '1.90.0';
+    const vscodeVersion = '1.95.0';
 
     await runTests({
       extensionDevelopmentPath,

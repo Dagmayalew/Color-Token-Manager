@@ -1,3 +1,4 @@
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import {
@@ -20,7 +21,13 @@ import {
 } from './colorFile';
 import { warnDeprecatedImportStyleIfNeeded } from './importUtils';
 import { registerColorDiagnostics } from './diagnostics';
-import { ColorTokenMcpServer, createMcpStatusBarItem, getMcpClientSetupSnippet } from './mcpServer';
+import {
+  ColorTokenMcpServer,
+  createMcpStatusBarItem,
+  getAiAgentChoices,
+  getMcpClientConfig,
+  getMcpClientSetupSnippet,
+} from './mcpServer';
 import { getPreviewWebviewHtml } from './previewWebview';
 import { getResultsWebviewHtml } from './resultsWebview';
 import { runSetupWizard } from './setup';
@@ -246,6 +253,28 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   );
 
+  const connectAiAgentDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.connectAiAgent',
+    async () => {
+      try {
+        await connectAiAgent();
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
+  const installCursorMcpConfigDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.installCursorMcpConfig',
+    async () => {
+      try {
+        await installCursorMcpConfig();
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
   const showMcpOutputDisposable = vscode.commands.registerCommand(
     'colorTokenManager.showMcpOutput',
     () => {
@@ -275,6 +304,8 @@ export function activate(context: vscode.ExtensionContext): void {
     refreshDisposable,
     startMcpDisposable,
     copyMcpConfigDisposable,
+    connectAiAgentDisposable,
+    installCursorMcpConfigDisposable,
     showMcpOutputDisposable,
   );
 
@@ -389,6 +420,14 @@ async function handleWebviewMessage(message: {
       case 'copyMcpClientConfig':
         await copyMcpClientConfig();
         postStatus('Copied MCP setup snippets.');
+        break;
+      case 'connectAiAgent':
+        await connectAiAgent();
+        postStatus('Connected AI agent setup is ready.');
+        break;
+      case 'installCursorMcpConfig':
+        await installCursorMcpConfig();
+        postStatus('Installed Cursor MCP config.');
         break;
       case 'showMcpOutput':
         showMcpOutput();
@@ -689,29 +728,203 @@ function startMcpServer(): void {
 }
 
 async function copyMcpClientConfig(): Promise<void> {
+  const configContext = await getMcpConfigContext();
+  await vscode.env.clipboard.writeText(
+    getMcpClientSetupSnippet(
+      configContext.workspacePath,
+      configContext.serverPath,
+      configContext.colorsFilePath,
+    ),
+  );
+  vscode.window.showInformationMessage('Copied Color Token Manager MCP setup snippets.');
+}
+
+async function connectAiAgent(): Promise<void> {
+  const picked = await vscode.window.showQuickPick(
+    getAiAgentChoices().map((choice) => ({
+      label: choice.label,
+      description: choice.description,
+      agent: choice.id,
+    })),
+    {
+      title: 'Connect AI Agent',
+      placeHolder: 'Choose the AI client you want to connect to Color Token Manager',
+    },
+  );
+  if (!picked) {
+    return;
+  }
+
+  switch (picked.agent) {
+    case 'cursor':
+      await installCursorMcpConfig();
+      await showAgentConnectedMessage('Cursor');
+      return;
+    case 'claude-code':
+      await installClaudeCodeMcpConfig();
+      await showAgentConnectedMessage('Claude Code');
+      return;
+    case 'windsurf':
+      await installWindsurfMcpConfig();
+      await showAgentConnectedMessage('Windsurf');
+      return;
+    case 'custom':
+      await copyMcpClientConfig();
+      void vscode.window.showInformationMessage(
+        'Copied a standard MCP config. Paste it into your client’s MCP settings, then restart the client.',
+      );
+      return;
+    default:
+      return assertNever(picked.agent);
+  }
+}
+
+async function installCursorMcpConfig(): Promise<void> {
+  const configContext = await getMcpConfigContext();
+  const cursorDir = vscode.Uri.joinPath(configContext.workspaceFolder.uri, '.cursor');
+  const configUri = vscode.Uri.joinPath(cursorDir, 'mcp.json');
+  await installMcpConfigFile('Cursor', configUri, configContext);
+  vscode.window.showInformationMessage('Installed Color Token Manager MCP config for Cursor.');
+}
+
+async function installClaudeCodeMcpConfig(): Promise<void> {
+  const configContext = await getMcpConfigContext();
+  const configUri = vscode.Uri.joinPath(configContext.workspaceFolder.uri, '.mcp.json');
+  await installMcpConfigFile('Claude Code', configUri, configContext);
+  vscode.window.showInformationMessage('Installed Color Token Manager MCP config for Claude Code.');
+}
+
+async function installWindsurfMcpConfig(): Promise<void> {
+  const configContext = await getMcpConfigContext();
+  const windsurfDir = vscode.Uri.file(path.join(os.homedir(), '.codeium', 'windsurf'));
+  const configUri = vscode.Uri.joinPath(windsurfDir, 'mcp_config.json');
+  await installMcpConfigFile('Windsurf', configUri, configContext, {
+    isGlobal: true,
+    directoryUri: windsurfDir,
+  });
+  vscode.window.showInformationMessage('Installed Color Token Manager MCP config for Windsurf.');
+}
+
+async function installMcpConfigFile(
+  clientName: string,
+  configUri: vscode.Uri,
+  configContext: {
+    workspaceFolder: vscode.WorkspaceFolder;
+    workspacePath: string;
+    serverPath: string | undefined;
+    colorsFilePath: string;
+  },
+  options?: {
+    isGlobal?: boolean;
+    directoryUri?: vscode.Uri;
+  },
+): Promise<void> {
+  const targetLabel = options?.isGlobal
+    ? configUri.fsPath
+    : vscode.workspace.asRelativePath(configUri);
+  const action = await vscode.window.showInformationMessage(
+    `Install Color Token Manager MCP in ${targetLabel} for ${clientName}?`,
+    { modal: true },
+    'Install',
+  );
+  if (action !== 'Install') {
+    return;
+  }
+
+  const existing = await readJsonObjectIfExists(configUri);
+  const next = {
+    ...existing,
+    mcpServers: {
+      ...asJsonObject(existing.mcpServers),
+      ...getMcpClientConfig(
+        configContext.workspacePath,
+        configContext.serverPath,
+        configContext.colorsFilePath,
+      ).mcpServers,
+    },
+  };
+
+  const parentDir = options?.directoryUri ?? vscode.Uri.file(path.dirname(configUri.fsPath));
+  await vscode.workspace.fs.createDirectory(parentDir);
+  await vscode.workspace.fs.writeFile(
+    configUri,
+    Buffer.from(`${JSON.stringify(next, null, 2)}\n`, 'utf8'),
+  );
+}
+
+async function showAgentConnectedMessage(clientName: string): Promise<void> {
+  const action = await vscode.window.showInformationMessage(
+    `${clientName} is configured for Color Token Manager. Reload ${clientName}, then ask it to read colors://help.`,
+    'Show MCP Logs',
+  );
+  if (action === 'Show MCP Logs') {
+    showMcpOutput();
+  }
+}
+
+async function getMcpConfigContext(): Promise<{
+  workspaceFolder: vscode.WorkspaceFolder;
+  workspacePath: string;
+  serverPath: string | undefined;
+  colorsFilePath: string;
+}> {
   const contextUri = vscode.window.activeTextEditor?.document.uri;
   const colorsFileUri = await getKnownColorsFile(contextUri);
   const workspaceFolder =
     (colorsFileUri && vscode.workspace.getWorkspaceFolder(colorsFileUri)) ??
     (contextUri && vscode.workspace.getWorkspaceFolder(contextUri)) ??
     vscode.workspace.workspaceFolders?.[0];
-  const workspacePath = workspaceFolder?.uri.fsPath;
-  const colorsFilePath =
-    colorsFileUri && workspaceFolder
-      ? path.relative(workspaceFolder.uri.fsPath, colorsFileUri.fsPath).replace(/\\/g, '/')
-      : 'colors.ts';
+  if (!workspaceFolder) {
+    throw new Error('Open a workspace before configuring Cursor MCP.');
+  }
+
+  const workspacePath = workspaceFolder.uri.fsPath;
+  const colorsFilePath = colorsFileUri
+    ? path.relative(workspaceFolder.uri.fsPath, colorsFileUri.fsPath).replace(/\\/g, '/')
+    : 'colors.ts';
   const serverPath = extensionRootPath
     ? path.join(extensionRootPath, 'dist', 'mcp-server.js')
     : undefined;
-  await vscode.env.clipboard.writeText(
-    getMcpClientSetupSnippet(workspacePath, serverPath, colorsFilePath),
-  );
-  vscode.window.showInformationMessage('Copied Color Token Manager MCP setup snippets.');
+
+  return { workspaceFolder, workspacePath, serverPath, colorsFilePath };
 }
 
 function showMcpOutput(): void {
   startMcpServer();
   mcpOutput?.show();
+}
+
+async function readJsonObjectIfExists(uri: vscode.Uri): Promise<Record<string, unknown>> {
+  try {
+    const text = Buffer.from(await vscode.workspace.fs.readFile(uri))
+      .toString('utf8')
+      .trim();
+    if (!text) {
+      return {};
+    }
+
+    const parsed = JSON.parse(text) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`${vscode.workspace.asRelativePath(uri)} must contain a JSON object.`);
+    }
+
+    return parsed as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof Error && /ENOENT|not found|FileNotFound/i.test(error.message)) {
+      return {};
+    }
+    throw error;
+  }
+}
+
+function asJsonObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unsupported AI agent: ${String(value)}`);
 }
 
 async function updateStatusBar(): Promise<void> {

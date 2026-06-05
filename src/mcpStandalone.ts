@@ -306,7 +306,7 @@ function helpResource(): JsonValue {
     examplePrompts: [
       'List unused color tokens.',
       'Preview extracting colors from src/components/Button.tsx with dryRun true.',
-      'Check contrast for colors.text.black against colors.background.white.',
+      'Pick one text-like token and one background-like token from colors://tokens/flat, then check their contrast.',
     ],
   };
 }

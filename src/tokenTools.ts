@@ -10,7 +10,13 @@ const SOURCE_GLOB = '**/*.{ts,tsx,js,jsx}';
 const DEFAULT_EXCLUDE =
   '{**/node_modules/**,**/dist/**,**/build/**,**/coverage/**,**/ios/**,**/android/**}';
 
-export const EXPORT_FORMATS = ['JSON', 'CSS Variables', 'Tailwind Config', 'Figma Tokens', 'W3C Design Tokens'] as const;
+export const EXPORT_FORMATS = [
+  'JSON',
+  'CSS Variables',
+  'Tailwind Config',
+  'Figma Tokens',
+  'W3C Design Tokens',
+] as const;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
 
 export function isExportFormat(value: unknown): value is ExportFormat {

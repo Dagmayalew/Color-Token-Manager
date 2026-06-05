@@ -44,6 +44,10 @@ type StdioLike = {
   stdout: NodeJS.WritableStream;
 };
 
+export type McpClientConfig = {
+  mcpServers: Record<string, { command: string; args: string[] }>;
+};
+
 export class ColorTokenMcpServer implements vscode.Disposable {
   private running = false;
   private readonly disposables: vscode.Disposable[] = [];
@@ -426,7 +430,7 @@ export function getMcpHelpResource(): JsonValue {
       'List unused color tokens and explain which ones look safe to remove.',
       'Preview extracting colors from src/components/Button.tsx with dryRun: true.',
       'Suggest a name for the backgroundColor in Button.tsx.',
-      'Check contrast for colors.text.black against colors.background.white.',
+      'Pick one text-like token and one background-like token from colors://tokens/flat, then check their contrast.',
     ],
   };
 }
@@ -436,7 +440,46 @@ export function getMcpClientSetupSnippet(
   serverPath?: string,
   colorsFile = 'colors.ts',
 ): string {
-  const command = process.execPath;
+  return JSON.stringify(getMcpClientConfig(workspacePath, serverPath, colorsFile), null, 2);
+}
+
+export type SupportedAiAgent = 'cursor' | 'claude-code' | 'windsurf' | 'custom';
+
+export function getAiAgentChoices(): Array<{
+  id: SupportedAiAgent;
+  label: string;
+  description: string;
+}> {
+  return [
+    {
+      id: 'cursor',
+      label: 'Cursor',
+      description: 'Install a project-scoped .cursor/mcp.json entry automatically.',
+    },
+    {
+      id: 'claude-code',
+      label: 'Claude Code',
+      description: 'Install a project-scoped .mcp.json entry automatically.',
+    },
+    {
+      id: 'windsurf',
+      label: 'Windsurf',
+      description: 'Install a global ~/.codeium/windsurf/mcp_config.json entry automatically.',
+    },
+    {
+      id: 'custom',
+      label: 'Custom MCP Client',
+      description: 'Copy a standard MCP JSON snippet for any compatible client.',
+    },
+  ];
+}
+
+export function getMcpClientConfig(
+  workspacePath?: string,
+  serverPath?: string,
+  colorsFile = 'colors.ts',
+): McpClientConfig {
+  const command = 'node';
   const args = [
     serverPath ?? 'PATH_TO_COLOR_TOKEN_MANAGER/dist/mcp-server.js',
     ...(workspacePath ? ['--workspace', workspacePath] : []),
@@ -444,18 +487,14 @@ export function getMcpClientSetupSnippet(
     colorsFile,
   ];
 
-  return JSON.stringify(
-    {
-      mcpServers: {
-        'color-token-manager': {
-          command,
-          args,
-        },
+  return {
+    mcpServers: {
+      'color-token-manager': {
+        command,
+        args,
       },
     },
-    null,
-    2,
-  );
+  };
 }
 
 export function getStartMcpCommandTitle(): string {

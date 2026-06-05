@@ -110,8 +110,66 @@ export namespace Uri {
 }
 
 export class WorkspaceEdit {
-  replace(): void {
-    return undefined;
+  public replacements: Array<{ uri: any; range: Range; newText: string }> = [];
+  public insertions: Array<{ uri: any; position: Position; newText: string }> = [];
+
+  replace(uri: any, range: Range, newText: string): void {
+    this.replacements.push({ uri, range, newText });
+  }
+
+  insert(uri: any, position: Position, newText: string): void {
+    this.insertions.push({ uri, position, newText });
+  }
+}
+
+export enum DiagnosticSeverity {
+  Error = 0,
+  Warning = 1,
+  Information = 2,
+  Hint = 3,
+}
+
+export class Diagnostic {
+  public source?: string;
+  public code?: string | number | { value: string | number; target: any };
+
+  constructor(
+    public range: Range,
+    public message: string,
+    public severity: DiagnosticSeverity = DiagnosticSeverity.Error,
+  ) {}
+}
+
+export enum CodeActionKind {
+  Empty = '',
+  QuickFix = 'quickfix',
+  Refactor = 'refactor',
+  Source = 'source',
+}
+
+export class CodeAction {
+  public diagnostics?: Diagnostic[];
+  public isPreferred?: boolean;
+  public edit?: WorkspaceEdit;
+  public command?: { command: string; title: string; arguments?: any[] };
+
+  constructor(
+    public title: string,
+    public kind?: CodeActionKind,
+  ) {}
+}
+
+export namespace languages {
+  export function createDiagnosticCollection() {
+    return {
+      set: () => undefined,
+      delete: () => undefined,
+      clear: () => undefined,
+      dispose: () => undefined,
+    };
+  }
+  export function registerCodeActionsProvider() {
+    return { dispose: () => undefined };
   }
 }
 

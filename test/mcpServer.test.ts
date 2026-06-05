@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, test } from 'node:test';
-import { ColorTokenMcpServer, getMcpClientSetupSnippet } from '../src/mcpServer';
+import { ColorTokenMcpServer, getAiAgentChoices, getMcpClientSetupSnippet } from '../src/mcpServer';
 import * as vscode from 'vscode';
 
 const tempDirs: string[] = [];
@@ -62,7 +62,7 @@ test('MCP client setup snippet includes client names and examples', () => {
     mcpServers: { 'color-token-manager': { command: string; args: string[] } };
   };
 
-  assert.equal(typeof config.mcpServers['color-token-manager'].command, 'string');
+  assert.equal(config.mcpServers['color-token-manager'].command, 'node');
   assert.deepEqual(config.mcpServers['color-token-manager'].args, [
     '/extension/dist/mcp-server.js',
     '--workspace',
@@ -70,6 +70,18 @@ test('MCP client setup snippet includes client names and examples', () => {
     '--colors-file',
     'src/theme/colors.ts',
   ]);
+});
+
+test('AI agent choices include workspace and global installers', () => {
+  const choices = getAiAgentChoices();
+
+  assert.deepEqual(
+    choices.map((choice) => choice.id),
+    ['cursor', 'claude-code', 'windsurf', 'custom'],
+  );
+  assert.ok(choices.some((choice) => choice.description.includes('.cursor/mcp.json')));
+  assert.ok(choices.some((choice) => choice.description.includes('.mcp.json')));
+  assert.ok(choices.some((choice) => choice.description.includes('mcp_config.json')));
 });
 
 test('MCP extraction preview rejects paths outside the active workspace', async () => {

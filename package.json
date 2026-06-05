@@ -114,6 +114,14 @@
         "title": "Color Token Manager: Copy MCP Client Config"
       },
       {
+        "command": "colorTokenManager.connectAiAgent",
+        "title": "Color Token Manager: Connect AI Agent"
+      },
+      {
+        "command": "colorTokenManager.installCursorMcpConfig",
+        "title": "Color Token Manager: Install Cursor MCP Config"
+      },
+      {
         "command": "colorTokenManager.showMcpOutput",
         "title": "Color Token Manager: Show MCP Logs"
       }
@@ -172,6 +180,12 @@
         },
         {
           "command": "colorTokenManager.copyMcpClientConfig"
+        },
+        {
+          "command": "colorTokenManager.connectAiAgent"
+        },
+        {
+          "command": "colorTokenManager.installCursorMcpConfig"
         },
         {
           "command": "colorTokenManager.showMcpOutput"
@@ -375,7 +389,7 @@
     "format:check": "prettier . --check",
     "test": "npm run test:compile && npm run test:run",
     "test:compile": "tsc -p tsconfig.test.json",
-    "test:run": "node --require ./test/setup.cjs --test out-test/test/smoke.test.js out-test/test/colorFile.test.js out-test/test/colorExtractor.test.js out-test/test/globUtils.test.js out-test/test/workspaceUtils.test.js out-test/test/mcpServer.test.js",
+    "test:run": "node --require ./test/setup.cjs --test out-test/test/smoke.test.js out-test/test/colorFile.test.js out-test/test/colorExtractor.test.js out-test/test/globUtils.test.js out-test/test/workspaceUtils.test.js out-test/test/mcpServer.test.js out-test/test/diagnostics.test.js",
     "test:integration": "npm run compile && npm run test:integration:compile && node ./out-test/test/runTest.js",
     "test:integration:compile": "tsc -p tsconfig.integration.json",
     "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js --minify && esbuild src/mcpStandalone.ts --bundle --platform=node --format=cjs --outfile=dist/mcp-server.js --minify",
