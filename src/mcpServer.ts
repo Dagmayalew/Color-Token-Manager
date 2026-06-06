@@ -439,8 +439,13 @@ export function getMcpClientSetupSnippet(
   workspacePath?: string,
   serverPath?: string,
   colorsFile = 'colors.ts',
+  command = 'node',
 ): string {
-  return JSON.stringify(getMcpClientConfig(workspacePath, serverPath, colorsFile), null, 2);
+  return JSON.stringify(
+    getMcpClientConfig(workspacePath, serverPath, colorsFile, command),
+    null,
+    2,
+  );
 }
 
 export type SupportedAiAgent = 'cursor' | 'claude-code' | 'windsurf' | 'codex' | 'custom';
@@ -483,8 +488,8 @@ export function getMcpClientConfig(
   workspacePath?: string,
   serverPath?: string,
   colorsFile = 'colors.ts',
+  command = 'node',
 ): McpClientConfig {
-  const command = 'node';
   const args = [
     serverPath ?? 'PATH_TO_COLOR_TOKEN_MANAGER/dist/mcp-server.js',
     ...(workspacePath ? ['--workspace', workspacePath] : []),
@@ -506,8 +511,11 @@ export function getCodexMcpConfigBlock(
   workspacePath?: string,
   serverPath?: string,
   colorsFile = 'colors.ts',
+  command = 'node',
 ): string {
-  const config = getMcpClientConfig(workspacePath, serverPath, colorsFile).mcpServers[SERVER_NAME];
+  const config = getMcpClientConfig(workspacePath, serverPath, colorsFile, command).mcpServers[
+    SERVER_NAME
+  ];
   return [
     `[mcp_servers."${SERVER_NAME}"]`,
     `command = ${toTomlString(config.command)}`,
@@ -520,8 +528,9 @@ export function upsertCodexMcpConfigToml(
   workspacePath?: string,
   serverPath?: string,
   colorsFile = 'colors.ts',
+  command = 'node',
 ): string {
-  const block = getCodexMcpConfigBlock(workspacePath, serverPath, colorsFile);
+  const block = getCodexMcpConfigBlock(workspacePath, serverPath, colorsFile, command);
   const normalized = existing.replace(/\r\n/g, '\n');
   const lines = normalized.split('\n');
   const startIndex = lines.findIndex((line) => line.trim() === `[mcp_servers."${SERVER_NAME}"]`);

@@ -747,11 +747,13 @@ function startMcpServer(): void {
 
 async function copyMcpClientConfig(): Promise<void> {
   const configContext = await getMcpConfigContext();
+  const nodeCommand = await resolveNodeCommand();
   await vscode.env.clipboard.writeText(
     getMcpClientSetupSnippet(
       configContext.workspacePath,
       configContext.serverPath,
       configContext.colorsFilePath,
+      nodeCommand,
     ),
   );
   vscode.window.showInformationMessage('Copied Color Token Manager MCP setup snippets.');
@@ -806,14 +808,12 @@ async function installCursorMcpConfig(): Promise<void> {
   const cursorDir = vscode.Uri.joinPath(configContext.workspaceFolder.uri, '.cursor');
   const configUri = vscode.Uri.joinPath(cursorDir, 'mcp.json');
   await installMcpConfigFile('Cursor', configUri, configContext);
-  vscode.window.showInformationMessage('Installed Color Token Manager MCP config for Cursor.');
 }
 
 async function installClaudeCodeMcpConfig(): Promise<void> {
   const configContext = await getMcpConfigContext();
   const configUri = vscode.Uri.joinPath(configContext.workspaceFolder.uri, '.mcp.json');
   await installMcpConfigFile('Claude Code', configUri, configContext);
-  vscode.window.showInformationMessage('Installed Color Token Manager MCP config for Claude Code.');
 }
 
 async function installWindsurfMcpConfig(): Promise<void> {
@@ -824,11 +824,11 @@ async function installWindsurfMcpConfig(): Promise<void> {
     isGlobal: true,
     directoryUri: windsurfDir,
   });
-  vscode.window.showInformationMessage('Installed Color Token Manager MCP config for Windsurf.');
 }
 
 async function installCodexMcpConfig(): Promise<void> {
   const configContext = await getMcpConfigContext();
+  const nodeCommand = await resolveNodeCommand();
   const codexDir = vscode.Uri.file(path.join(os.homedir(), '.codex'));
   const configUri = vscode.Uri.joinPath(codexDir, 'config.toml');
   const action = await vscode.window.showInformationMessage(
@@ -846,11 +846,11 @@ async function installCodexMcpConfig(): Promise<void> {
     configContext.workspacePath,
     configContext.serverPath,
     configContext.colorsFilePath,
+    nodeCommand,
   );
 
   await vscode.workspace.fs.createDirectory(codexDir);
   await vscode.workspace.fs.writeFile(configUri, Buffer.from(next, 'utf8'));
-  vscode.window.showInformationMessage('Installed Color Token Manager MCP config for Codex.');
 }
 
 async function installMcpConfigFile(
@@ -867,6 +867,7 @@ async function installMcpConfigFile(
     directoryUri?: vscode.Uri;
   },
 ): Promise<void> {
+  const nodeCommand = await resolveNodeCommand();
   const targetLabel = options?.isGlobal
     ? configUri.fsPath
     : vscode.workspace.asRelativePath(configUri);
@@ -888,6 +889,7 @@ async function installMcpConfigFile(
         configContext.workspacePath,
         configContext.serverPath,
         configContext.colorsFilePath,
+        nodeCommand,
       ).mcpServers,
     },
   };
@@ -901,16 +903,10 @@ async function installMcpConfigFile(
 }
 
 async function showAgentConnectedMessage(clientName: string): Promise<void> {
-  const action = await vscode.window.showInformationMessage(
-    `${clientName} is configured for Color Token Manager. Reload ${clientName}, then ask it to read colors://help.`,
-    'Test MCP Server',
-    'Show MCP Logs',
+  void vscode.window.showInformationMessage(
+    `${clientName} is configured for Color Token Manager. Reloading this window now. After VS Code reloads, restart ${clientName} and ask it to read colors://help.`,
   );
-  if (action === 'Test MCP Server') {
-    await testMcpServer();
-  } else if (action === 'Show MCP Logs') {
-    showMcpOutput();
-  }
+  await vscode.commands.executeCommand('workbench.action.reloadWindow');
 }
 
 async function getMcpConfigContext(): Promise<{
@@ -1154,6 +1150,32 @@ async function readTextIfExists(uri: vscode.Uri): Promise<string> {
     }
     throw error;
   }
+}
+
+async function resolveNodeCommand(): Promise<string> {
+  const candidates = Array.from(
+    new Set(
+      [
+        process.env.npm_node_execpath,
+        process.env.NODE,
+        process.execPath.includes('node') ? process.execPath : undefined,
+        '/opt/homebrew/bin/node',
+        '/usr/local/bin/node',
+        '/usr/bin/node',
+      ].filter((value): value is string => Boolean(value)),
+    ),
+  );
+
+  for (const candidate of candidates) {
+    try {
+      await vscode.workspace.fs.stat(vscode.Uri.file(candidate));
+      return candidate;
+    } catch {
+      // Try the next candidate.
+    }
+  }
+
+  return 'node';
 }
 
 function asJsonObject(value: unknown): Record<string, unknown> {

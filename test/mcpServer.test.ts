@@ -78,6 +78,20 @@ test('MCP client setup snippet includes client names and examples', () => {
   ]);
 });
 
+test('MCP client setup snippet can override the node command', () => {
+  const snippet = getMcpClientSetupSnippet(
+    '/workspace/app',
+    '/extension/dist/mcp-server.js',
+    'src/theme/colors.ts',
+    '/opt/homebrew/bin/node',
+  );
+  const config = JSON.parse(snippet) as {
+    mcpServers: { 'color-token-manager': { command: string; args: string[] } };
+  };
+
+  assert.equal(config.mcpServers['color-token-manager'].command, '/opt/homebrew/bin/node');
+});
+
 test('AI agent choices include workspace and global installers', () => {
   const choices = getAiAgentChoices();
 
@@ -102,6 +116,17 @@ test('Codex MCP config block uses node with workspace args', () => {
   assert.match(block, /command = "node"/);
   assert.match(block, /"--workspace", "\/workspace\/app"/);
   assert.match(block, /"--colors-file", "src\/theme\/colors.ts"/);
+});
+
+test('Codex MCP config block can override the node command', () => {
+  const block = getCodexMcpConfigBlock(
+    '/workspace/app',
+    '/extension/dist/mcp-server.js',
+    'src/theme/colors.ts',
+    '/opt/homebrew/bin/node',
+  );
+
+  assert.match(block, /command = "\/opt\/homebrew\/bin\/node"/);
 });
 
 test('Codex MCP config block replaces an existing server block', () => {
