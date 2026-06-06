@@ -26,6 +26,7 @@ async function flushFrames(): Promise<void> {
   while (true) {
     const headerEnd = frameBuffer.indexOf('\r\n\r\n');
     if (headerEnd === -1) {
+      await flushLineFrames();
       return;
     }
 
@@ -45,6 +46,20 @@ async function flushFrames(): Promise<void> {
     const body = frameBuffer.slice(bodyStart, bodyEnd).toString('utf8');
     frameBuffer = frameBuffer.slice(bodyEnd);
     await handleMessage(JSON.parse(body) as JsonRpcRequest);
+  }
+}
+
+async function flushLineFrames(): Promise<void> {
+  const text = frameBuffer.toString('utf8');
+  const newline = text.indexOf('\n');
+  if (newline === -1) {
+    return;
+  }
+
+  const line = text.slice(0, newline).trim();
+  frameBuffer = Buffer.from(text.slice(newline + 1), 'utf8');
+  if (line) {
+    await handleMessage(JSON.parse(line) as JsonRpcRequest);
   }
 }
 

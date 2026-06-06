@@ -448,7 +448,7 @@ export function getMcpClientSetupSnippet(
   );
 }
 
-export type SupportedAiAgent = 'cursor' | 'claude-code' | 'windsurf' | 'codex' | 'custom';
+export type SupportedAiAgent = 'cursor' | 'claude-code' | 'windsurf' | 'codex' | 'gemini' | 'custom';
 
 export function getAiAgentChoices(): Array<{
   id: SupportedAiAgent;
@@ -475,6 +475,11 @@ export function getAiAgentChoices(): Array<{
       id: 'codex',
       label: 'Codex',
       description: 'Install a global ~/.codex/config.toml MCP entry automatically.',
+    },
+    {
+      id: 'gemini',
+      label: 'Gemini CLI',
+      description: 'Install a global ~/.gemini/settings.json MCP entry automatically.',
     },
     {
       id: 'custom',
@@ -520,6 +525,7 @@ export function getCodexMcpConfigBlock(
     `[mcp_servers."${SERVER_NAME}"]`,
     `command = ${toTomlString(config.command)}`,
     `args = ${toTomlStringArray(config.args)}`,
+    `startup_timeout_sec = 60`,
   ].join('\n');
 }
 

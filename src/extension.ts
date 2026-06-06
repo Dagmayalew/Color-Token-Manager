@@ -792,6 +792,10 @@ async function connectAiAgent(): Promise<void> {
       await installCodexMcpConfig();
       await showAgentConnectedMessage('Codex');
       return;
+    case 'gemini':
+      await installGeminiMcpConfig();
+      await showAgentConnectedMessage('Gemini CLI');
+      return;
     case 'custom':
       await copyMcpClientConfig();
       void vscode.window.showInformationMessage(
@@ -823,6 +827,16 @@ async function installWindsurfMcpConfig(): Promise<void> {
   await installMcpConfigFile('Windsurf', configUri, configContext, {
     isGlobal: true,
     directoryUri: windsurfDir,
+  });
+}
+
+async function installGeminiMcpConfig(): Promise<void> {
+  const configContext = await getMcpConfigContext();
+  const geminiDir = vscode.Uri.file(path.join(os.homedir(), '.gemini'));
+  const configUri = vscode.Uri.joinPath(geminiDir, 'settings.json');
+  await installMcpConfigFile('Gemini CLI', configUri, configContext, {
+    isGlobal: true,
+    directoryUri: geminiDir,
   });
 }
 
@@ -922,7 +936,7 @@ async function getMcpConfigContext(): Promise<{
     (contextUri && vscode.workspace.getWorkspaceFolder(contextUri)) ??
     vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
-    throw new Error('Open a workspace before configuring Cursor MCP.');
+    throw new Error('Open a workspace before configuring Color Token Manager MCP.');
   }
 
   const workspacePath = workspaceFolder.uri.fsPath;

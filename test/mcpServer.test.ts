@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -156,6 +157,59 @@ test('Codex MCP config block removes stray array lines from a broken previous wr
   assert.equal((next.match(/^args = /gm) ?? []).length, 1);
   assert.doesNotMatch(next, /^\["\/old\/server\.js"/m);
   assert.match(next, /\[features\]\njs_repl = false/);
+});
+
+test('standalone MCP server accepts line-delimited initialize requests', async () => {
+  const { root } = setupWorkspace();
+
+  const result = await new Promise<string>((resolve, reject) => {
+    const child = spawn(process.execPath, [
+      path.join(process.cwd(), 'out-test', 'src', 'mcpStandalone.js'),
+      '--workspace',
+      root,
+      '--colors-file',
+      'src/theme/colors.ts',
+    ]);
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+
+    const finish = (fn: () => void) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      child.stdin.end();
+      child.kill();
+      fn();
+    };
+
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString('utf8');
+      if (stdout.includes('"protocolVersion":"2024-11-05"')) {
+        finish(() => resolve(stdout));
+      }
+    });
+
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString('utf8');
+    });
+
+    child.once('error', (error) => finish(() => reject(error)));
+    child.once('exit', (code) => {
+      if (!settled) {
+        finish(() =>
+          reject(new Error(stderr || `standalone server exited before replying (${String(code)})`)),
+        );
+      }
+    });
+
+    child.stdin.write(
+      `${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })}\n`,
+    );
+  });
+
+  assert.match(result, /"protocolVersion":"2024-11-05"/);
 });
 
 test('MCP extraction preview rejects paths outside the active workspace', async () => {
