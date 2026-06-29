@@ -40,6 +40,7 @@ const adapters: LanguageAdapter[] = [
   xmlAdapter,
   svgAdapter,
   markdownAdapter,
+  genericAdapter,
 ];
 
 export function registerAdapter(adapter: LanguageAdapter) {
@@ -47,17 +48,27 @@ export function registerAdapter(adapter: LanguageAdapter) {
 }
 
 export function getAdapterForDocument(document: vscode.TextDocument): LanguageAdapter {
-  const byId = getAdapterByLanguageId(document.languageId);
-  if (byId !== genericAdapter) {
-    return byId;
+  const fileName = document.fileName || '';
+  const extension = getDocumentExtension(fileName);
+  const languageMatches = adapters.filter((a) => a.languageIds.includes(document.languageId));
+
+  if (languageMatches.length === 1) {
+    return languageMatches[0];
   }
 
-  // document.fileName could be undefined in some cases in tests, though real docs have it.
-  const fileName = document.fileName || '';
-  const extMatch = fileName.match(/\.[a-zA-Z0-9]+$/);
-  if (extMatch) {
-    const ext = extMatch[0];
-    const byExt = adapters.find((a) => a.extensions.includes(ext));
+  if (languageMatches.length > 1 && extension) {
+    const byLanguageAndExt = languageMatches.find((a) => a.extensions.includes(extension));
+    if (byLanguageAndExt) {
+      return byLanguageAndExt;
+    }
+  }
+
+  if (languageMatches.length > 1) {
+    return languageMatches[0];
+  }
+
+  if (extension) {
+    const byExt = adapters.find((a) => a.extensions.includes(extension));
     if (byExt) {
       return byExt;
     }
@@ -89,6 +100,10 @@ export function isPreviewOnlyAdapter(adapter: LanguageAdapter): boolean {
 export function isReplacementSupported(document: vscode.TextDocument): boolean {
   const adapter = getAdapterForDocument(document);
   return adapter.canReplace;
+}
+
+function getDocumentExtension(fileName: string): string | undefined {
+  return fileName.match(/\.[a-zA-Z0-9]+$/)?.[0];
 }
 
 export {
