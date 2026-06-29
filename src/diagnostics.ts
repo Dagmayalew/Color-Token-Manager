@@ -12,7 +12,7 @@ import { addColorsImportEdit, getColorsIdentifier } from './importUtils';
 import { getContextText } from './colorPlan';
 import { suggestTokenName } from './tokenNaming';
 import { type AppColor } from './types';
-import { getAdapterForDocument } from './languages/registry';
+import { getEffectiveAdapterForDocument, getSupportedLanguageIds } from './languages/registry';
 
 const DIAGNOSTIC_SOURCE = 'Color Token Manager';
 const DIAGNOSTIC_CODE = 'hardcoded-color';
@@ -79,16 +79,7 @@ export function registerColorDiagnostics(context: vscode.ExtensionContext): void
     vscode.workspace.onDidCloseTextDocument((document) => collection.delete(document.uri)),
     vscode.window.onDidChangeVisibleTextEditors(refreshVisible),
     vscode.languages.registerCodeActionsProvider(
-      [
-        { scheme: 'file', language: 'typescript' },
-        { scheme: 'file', language: 'typescriptreact' },
-        { scheme: 'file', language: 'javascript' },
-        { scheme: 'file', language: 'javascriptreact' },
-        { scheme: 'file', language: 'vue' },
-        { scheme: 'file', language: 'css' },
-        { scheme: 'file', language: 'scss' },
-        { scheme: 'file', language: 'less' },
-      ],
+      getCodeActionLanguageSelectors(),
       colorCodeActionProvider,
       { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] },
     ),
@@ -98,7 +89,7 @@ export function registerColorDiagnostics(context: vscode.ExtensionContext): void
 }
 
 function getHardcodedColorDiagnostics(document: vscode.TextDocument): vscode.Diagnostic[] {
-  const adapter = getAdapterForDocument(document);
+  const adapter = getEffectiveAdapterForDocument(document);
   return extractHardcodedColorsFromText(
     document.getText(),
     getExtractionOptions(document),
@@ -182,7 +173,7 @@ function refreshSwatches(
   }
 
   const grouped = new Map<string, vscode.DecorationOptions[]>();
-  const adapter = getAdapterForDocument(editor.document);
+  const adapter = getEffectiveAdapterForDocument(editor.document);
   for (const color of extractHardcodedColorsFromText(
     editor.document.getText(),
     getExtractionOptions(editor.document),
@@ -288,6 +279,28 @@ function createTarget(document: vscode.TextDocument, range: vscode.Range): Selec
   };
 }
 
+function createOpenPreviewAction(
+  document: vscode.TextDocument,
+  diagnostic: vscode.Diagnostic,
+  title = 'Open extraction preview',
+): vscode.CodeAction {
+  const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);
+  action.diagnostics = [diagnostic];
+  action.isPreferred = true;
+  action.command = {
+    command: 'colorTokenManager.previewColorAtRange',
+    title,
+    arguments: [createTarget(document, diagnostic.range)],
+  };
+  return action;
+}
+
+function getCodeActionLanguageSelectors(): vscode.DocumentSelector {
+  const languageIds = new Set([...getSupportedLanguageIds(), 'vue']);
+  languageIds.delete('*');
+  return Array.from(languageIds).map((language) => ({ scheme: 'file', language }));
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -312,7 +325,7 @@ export const colorCodeActionProvider: vscode.CodeActionProvider = {
 
     // Find the corresponding ExtractedColor from the document
     const text = document.getText();
-    const adapter = getAdapterForDocument(document);
+    const adapter = getEffectiveAdapterForDocument(document);
     const extractedColors = extractHardcodedColorsFromText(
       text,
       getExtractionOptions(document),
@@ -331,6 +344,10 @@ export const colorCodeActionProvider: vscode.CodeActionProvider = {
 
     if (!color) {
       return [];
+    }
+
+    if (!adapter.canReplace) {
+      return [createOpenPreviewAction(document, matchingDiagnostic)];
     }
 
     // Read colors.ts if configured/known
@@ -361,7 +378,7 @@ export const colorCodeActionProvider: vscode.CodeActionProvider = {
         replaceAction.edit.replace(
           document.uri,
           matchingDiagnostic.range,
-          getReplacementText(color, token.key),
+          getReplacementText(color, token.key, adapter),
         );
 
         if (!STYLE_EXTENSIONS.has(path.extname(document.uri.fsPath)) && colorsFileUri) {
@@ -394,17 +411,12 @@ export const colorCodeActionProvider: vscode.CodeActionProvider = {
     }
 
     // Always offer "Extract this color" command to open the preview panel
-    const extractAction = new vscode.CodeAction(
+    const extractAction = createOpenPreviewAction(
+      document,
+      matchingDiagnostic,
       'Extract this color',
-      vscode.CodeActionKind.QuickFix,
     );
-    extractAction.diagnostics = [matchingDiagnostic];
     extractAction.isPreferred = matchingTokens.length === 0;
-    extractAction.command = {
-      command: 'colorTokenManager.previewColorAtRange',
-      title: 'Extract this color',
-      arguments: [createTarget(document, matchingDiagnostic.range)],
-    };
     actions.push(extractAction);
 
     return actions;

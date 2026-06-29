@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test, beforeEach } from 'node:test';
 import { htmlAdapter } from '../src/languages/htmlAdapter';
+import { getReplacementText } from '../src/colorScan';
 import { __resetTestConfig } from './stubs/vscode';
 
 beforeEach(() => {
@@ -201,4 +202,18 @@ test('extracts colors with context for token naming', () => {
   const extracted = htmlAdapter.extractInlineStyleColors!(htmlContent);
   assert.strictEqual(extracted.length, 1);
   assert.ok(extracted[0].suggestedName.length > 0);
+});
+
+test('replaces inline style colors with css variables', () => {
+  const htmlContent = `<div style="color: #111827; background-color: #FFFFFF;"></div>`;
+  const extracted = htmlAdapter.extractInlineStyleColors!(htmlContent);
+
+  assert.strictEqual(
+    getReplacementText(extracted[0], 'neutral.900', htmlAdapter),
+    'var(--color-neutral-900)',
+  );
+  assert.strictEqual(
+    getReplacementText(extracted[1], 'background', htmlAdapter),
+    'var(--color-background)',
+  );
 });

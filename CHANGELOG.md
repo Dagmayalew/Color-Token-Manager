@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.4.0 — Multi-Language Foundation
+
+### Added
+
+- Added language adapter architecture.
+- Added CSS/SCSS/LESS scanning and replacement using CSS variables.
+- Added HTML inline style scanning and replacement.
+- Added preview-only scanning for Dart, Swift, Kotlin, Java, Go, Python, PHP, Ruby, JSON, YAML, XML, SVG, and Markdown.
+- Added enabled languages setting.
+- Added safe/scan-only/experimental language modes.
+- Added language grouping in preview.
+
 ### Added
 
 - Added automatic token/theme file detection (`src/tokenDetection.ts`) with confidence ranking for `src/theme/colors.ts`, `src/theme/theme.ts`, `src/tokens.ts`, and other common paths.

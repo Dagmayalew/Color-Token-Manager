@@ -31,3 +31,5 @@ export type LanguageAdapter = {
     referencePrefix: string;
   }) => vscode.TextEdit[];
 };
+
+export type LanguageMode = 'safe' | 'scanOnly' | 'experimental';

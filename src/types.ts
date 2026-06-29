@@ -69,7 +69,9 @@ export type FileExtractionPreview = {
   filePath: string;
   fileUri: string;
   adapterId: string;
+  languageName: string;
   isPreviewOnly: boolean;
+  replacementStatus: 'Replacement enabled' | 'Preview only';
   replacements: ColorReplacementPreview[];
 };
 
@@ -83,6 +85,7 @@ export type FolderExtractionPreview = {
   colorsFound: number;
   tokensToAdd: number;
   tokensToReuse: number;
+  supportedLanguages?: string[];
   files: FileExtractionPreview[];
 };
 

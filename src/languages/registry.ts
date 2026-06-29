@@ -1,5 +1,5 @@
-import type * as vscode from 'vscode';
-import { type LanguageAdapter } from './types';
+import * as vscode from 'vscode';
+import { type LanguageAdapter, type LanguageMode } from './types';
 import { javascriptAdapter } from './javascriptAdapter';
 import { typescriptAdapter } from './typescriptAdapter';
 import { cssAdapter } from './cssAdapter';
@@ -98,12 +98,60 @@ export function isPreviewOnlyAdapter(adapter: LanguageAdapter): boolean {
 }
 
 export function isReplacementSupported(document: vscode.TextDocument): boolean {
-  const adapter = getAdapterForDocument(document);
+  const adapter = getEffectiveAdapterForDocument(document);
   return adapter.canReplace;
+}
+
+export function getEffectiveAdapterForDocument(document: vscode.TextDocument): LanguageAdapter {
+  const adapter = getAdapterForDocument(document);
+  if (!isLanguageEnabled(adapter)) {
+    return genericAdapter;
+  }
+
+  const mode = getLanguageMode();
+  if (mode === 'scanOnly') {
+    return { ...adapter, canReplace: false };
+  }
+
+  if (mode === 'safe') {
+    return isSafelyReplaceableAdapter(adapter) ? adapter : { ...adapter, canReplace: false };
+  }
+
+  return adapter;
 }
 
 function getDocumentExtension(fileName: string): string | undefined {
   return fileName.match(/\.[a-zA-Z0-9]+$/)?.[0];
+}
+
+function isLanguageEnabled(adapter: LanguageAdapter): boolean {
+  const enabledLanguages = vscode.workspace
+    .getConfiguration('colorTokenManager')
+    .get<string[]>('enabledLanguages');
+
+  if (!Array.isArray(enabledLanguages) || !enabledLanguages.length) {
+    return true;
+  }
+
+  return adapter.languageIds.some((languageId) => enabledLanguages.includes(languageId));
+}
+
+function getLanguageMode(): LanguageMode {
+  return (
+    vscode.workspace
+      .getConfiguration('colorTokenManager')
+      .get<LanguageMode>('languageMode', 'safe') ?? 'safe'
+  );
+}
+
+function isSafelyReplaceableAdapter(adapter: LanguageAdapter): boolean {
+  return (
+    adapter.canReplace &&
+    (adapter.id === 'javascript' ||
+      adapter.id === 'typescript' ||
+      adapter.id === 'css' ||
+      adapter.id === 'html')
+  );
 }
 
 export {

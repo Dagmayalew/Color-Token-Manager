@@ -9,7 +9,7 @@ import {
 } from './colorFile';
 import { globToRegExp } from './globUtils';
 import { getColorsImportPath, getTokenReferencePrefix } from './importUtils';
-import { getAdapterForDocument } from './languages/registry';
+import { getEffectiveAdapterForDocument, getScannableAdapters } from './languages/registry';
 import {
   addGeneratedColorToken,
   buildPreviewForDocument,
@@ -58,6 +58,9 @@ const SUPPORTED_EXTENSIONS = new Set([
   ...HTML_EXTENSIONS,
   ...PREVIEW_ONLY_EXTENSIONS,
 ]);
+const SUPPORTED_PREVIEW_LANGUAGES = getScannableAdapters()
+  .filter((adapter) => adapter.id !== 'generic')
+  .map((adapter) => adapter.displayName);
 const BLOCKED_PATH_PARTS = ['/node_modules/', '/build/', '/dist/'];
 export type ExtractionResult = {
   extracted: number;
@@ -82,7 +85,7 @@ export async function replaceColorsInDocument(
   let added = 0;
   let reused = 0;
   let skipped = 0;
-  const adapter = getAdapterForDocument(document);
+  const adapter = getEffectiveAdapterForDocument(document);
   const createAliases = vscode.workspace
     .getConfiguration('colorTokenManager')
     .get<boolean>('createSemanticAliases', true);
@@ -439,8 +442,19 @@ async function applyPreviewForFile(
   filePreview: FileExtractionPreview,
   colorsFileUri: vscode.Uri,
 ): Promise<PreviewFileApplyResult> {
+  if (filePreview.isPreviewOnly) {
+    return {
+      extracted: 0,
+      added: 0,
+      reused: 0,
+      skipped: filePreview.replacements.filter((replacement) => replacement.enabled !== false)
+        .length,
+      appliedReplacements: [],
+    };
+  }
+
   const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(filePreview.fileUri));
-  const adapter = getAdapterForDocument(document);
+  const adapter = getEffectiveAdapterForDocument(document);
   const extractedColors = extractHardcodedColorsFromText(
     document.getText(),
     getExtractionOptions(document),
@@ -586,7 +600,7 @@ export async function previewColorsFromCurrentFile(
     return undefined;
   }
 
-  const adapter = getAdapterForDocument(document);
+  const adapter = getEffectiveAdapterForDocument(document);
   const extractedColors = extractHardcodedColorsFromText(
     document.getText(),
     getExtractionOptions(document),
@@ -597,6 +611,9 @@ export async function previewColorsFromCurrentFile(
     document,
     extractedColors,
     createPreviewPlanner(existingColors),
+    adapter.id,
+    !adapter.canReplace,
+    adapter.displayName,
   );
 
   return {
@@ -612,6 +629,7 @@ export async function previewColorsFromCurrentFile(
     ).length,
     tokensToReuse: filePreview.replacements.filter((replacement) => replacement.action === 'reuse')
       .length,
+    supportedLanguages: SUPPORTED_PREVIEW_LANGUAGES,
     files: filePreview.replacements.length ? [filePreview] : [],
   };
 }
@@ -652,7 +670,7 @@ export async function previewColorsFromSelection(
   const selectionText = document.getText(
     new vscode.Range(document.positionAt(selectionStart), document.positionAt(selectionEnd)),
   );
-  const adapter = getAdapterForDocument(document);
+  const adapter = getEffectiveAdapterForDocument(document);
   const extractedColors = extractHardcodedColorsFromText(
     selectionText,
     getExtractionOptions(document),
@@ -667,6 +685,9 @@ export async function previewColorsFromSelection(
     document,
     extractedColors,
     createPreviewPlanner(existingColors),
+    adapter.id,
+    !adapter.canReplace,
+    adapter.displayName,
   );
 
   return {
@@ -682,6 +703,7 @@ export async function previewColorsFromSelection(
     ).length,
     tokensToReuse: filePreview.replacements.filter((replacement) => replacement.action === 'reuse')
       .length,
+    supportedLanguages: SUPPORTED_PREVIEW_LANGUAGES,
     files: filePreview.replacements.length ? [filePreview] : [],
   };
 }
@@ -705,13 +727,20 @@ export async function buildFolderExtractionPreview(
 
   for (const fileUri of fileUris) {
     const document = await vscode.workspace.openTextDocument(fileUri);
-    const adapter = getAdapterForDocument(document);
+    const adapter = getEffectiveAdapterForDocument(document);
     const extractedColors = extractHardcodedColorsFromText(
       document.getText(),
       getExtractionOptions(document),
       adapter,
     );
-    const filePreview = buildPreviewForDocument(document, extractedColors, planner);
+    const filePreview = buildPreviewForDocument(
+      document,
+      extractedColors,
+      planner,
+      adapter.id,
+      !adapter.canReplace,
+      adapter.displayName,
+    );
     const replacements = filePreview.replacements;
     colorsFound += replacements.length;
     tokensToAdd += replacements.filter(
@@ -734,6 +763,7 @@ export async function buildFolderExtractionPreview(
     colorsFound,
     tokensToAdd,
     tokensToReuse,
+    supportedLanguages: SUPPORTED_PREVIEW_LANGUAGES,
     files,
   };
 }
@@ -749,7 +779,7 @@ export async function extractColorsFromDocument(
     return { extracted: 0, added: 0, reused: 0, skipped: 0 };
   }
 
-  const adapter = getAdapterForDocument(document);
+  const adapter = getEffectiveAdapterForDocument(document);
   const extractedColors = extractHardcodedColorsFromText(
     document.getText(),
     getExtractionOptions(document),
@@ -763,7 +793,11 @@ export async function extractColorsFromDocument(
 }
 
 export function isSupportedExtractionDocument(document: vscode.TextDocument): boolean {
-  return isSupportedDocument(document) && path.basename(document.uri.fsPath) !== 'colors.ts';
+  return (
+    isSupportedDocument(document) &&
+    path.basename(document.uri.fsPath) !== 'colors.ts' &&
+    getEffectiveAdapterForDocument(document).canScan
+  );
 }
 
 async function pickTargetFolder(

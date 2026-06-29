@@ -28,6 +28,7 @@ This file is for people working on the extension repo. It does not duplicate the
 | `src/colorPlan.ts`      | Token naming, preview planning, preview validation       |
 | `src/colorApply.ts`     | Apply extractions, folder/selection workflows            |
 | `src/colorExtractor.ts` | Public re-exports (stable import path)                   |
+| `src/languages/`        | Language adapters, registry, replacement capability rules |
 | `src/colorFile.ts`      | Read/write `colors.ts` (object-literal scanner)          |
 | `src/diagnostics.ts`    | Underlines, swatches, quick fixes                        |
 | `src/tokenTools.ts`     | Rename, unused tokens, design-token export               |
@@ -56,6 +57,30 @@ Tests live in `test/` and compile with `tsconfig.test.json` (vscode → `test/st
 Integration tests live in `test/suite/`, compile with `tsconfig.integration.json`, and run through `test/runTest.ts` using `@vscode/test-electron`.
 
 Debug: **F5** (`Run Extension` in `.vscode/launch.json`, `preLaunchTask`: `npm: compile`).
+
+## Language adapter architecture
+
+Multi-language support is routed through `src/languages/`.
+
+| File | Role |
+| --- | --- |
+| `src/languages/types.ts` | Shared `LanguageAdapter` and `LanguageMode` types |
+| `src/languages/registry.ts` | Adapter lookup, enabled-language filtering, safe/scan-only/experimental mode behavior |
+| `src/languages/javascriptAdapter.ts` | JavaScript/JSX scan, token reference, and import behavior |
+| `src/languages/typescriptAdapter.ts` | TypeScript/TSX scan, token reference, and import behavior |
+| `src/languages/cssAdapter.ts` | CSS/SCSS/LESS scanning and CSS variable replacements |
+| `src/languages/htmlAdapter.ts` | HTML inline-style-only scanning and CSS variable replacements |
+| `src/languages/previewOnlyAdapters.ts` | Scan-only adapters for Dart, Swift, Kotlin, Java, Go, Python, PHP, Ruby, JSON, YAML, XML, SVG, and Markdown |
+| `src/languages/genericAdapter.ts` | Scan-only fallback |
+
+Adapter rules:
+
+- Use `getEffectiveAdapterForDocument(document)` for user-facing scan, preview, apply, diagnostics, and MCP flows. It applies `enabledLanguages` and `languageMode`.
+- Use `getAdapterForDocument(document)` only when raw adapter detection is needed without settings.
+- `safe` mode allows replacement only for the adapters marked safe in the registry: JavaScript, TypeScript, CSS-family files, and HTML inline styles.
+- `scanOnly` mode must keep scanning enabled but set replacement off for every adapter.
+- Preview-only adapters can contribute diagnostics and preview rows, but quick fixes must open the preview instead of writing direct edits.
+- Every new adapter needs focused tests for detection, scan behavior, replacement capability, and settings/mode behavior when relevant.
 
 ## Package size (verify after compile)
 

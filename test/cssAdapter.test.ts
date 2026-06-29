@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { test, beforeEach } from 'node:test';
+import { beforeEach, test } from 'node:test';
 import { cssAdapter } from '../src/languages/cssAdapter';
 import { extractHardcodedColorsFromText } from '../src/colorScan';
-import { __resetTestConfig } from './stubs/vscode';
+import { __resetTestConfig, __setTestConfig } from './stubs/vscode';
 
 beforeEach(() => {
   __resetTestConfig();
@@ -38,6 +38,19 @@ test('buildTokenReference formats as cssVariable by default', () => {
       tokenParts: ['background', 'white'],
     }),
     'var(--color-background-white)',
+  );
+});
+
+test('buildTokenReference respects cssTokenFormat cssVariable setting', () => {
+  __setTestConfig({ cssTokenFormat: 'cssVariable' });
+
+  assert.strictEqual(
+    cssAdapter.buildTokenReference({
+      tokenPath: 'colors',
+      tokenName: 'primary.500',
+      tokenParts: ['primary', '500'],
+    }),
+    'var(--color-primary-500)',
   );
 });
 

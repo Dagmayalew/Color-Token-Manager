@@ -306,14 +306,17 @@ export class ColorTokenMcpServer implements vscode.Disposable {
     }
 
     const document = await vscode.workspace.openTextDocument(targetUri);
-    const { getAdapterForDocument } = await import('./languages/registry');
-    const adapter = getAdapterForDocument(document);
+    const { getEffectiveAdapterForDocument } = await import('./languages/registry');
+    const adapter = getEffectiveAdapterForDocument(document);
     const extractedColors = extractHardcodedColorsFromText(document.getText(), {}, adapter);
     const existingColors = await readColors(colorsFileUri);
     const preview = buildPreviewForDocument(
       document,
       extractedColors,
       createPreviewPlanner(existingColors),
+      adapter.id,
+      !adapter.canReplace,
+      adapter.displayName,
     );
 
     return {

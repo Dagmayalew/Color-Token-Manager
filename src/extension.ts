@@ -515,8 +515,8 @@ async function openColorManager(
   try {
     const activeDoc = vscode.window.activeTextEditor?.document;
     if (activeDoc && isSupportedExtractionDocument(activeDoc)) {
-      const { getAdapterForDocument } = await import('./languages/registry');
-      const adapter = getAdapterForDocument(activeDoc);
+      const { getEffectiveAdapterForDocument } = await import('./languages/registry');
+      const adapter = getEffectiveAdapterForDocument(activeDoc);
       const text = activeDoc.getText();
       const extracted = extractHardcodedColorsFromText(text, {}, adapter);
       const prefix = getTokenReferencePrefix();

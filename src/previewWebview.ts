@@ -40,6 +40,11 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       margin: 0;
     }
 
+    h3 {
+      font-size: 13px;
+      margin: 0;
+    }
+
     button {
       background: var(--vscode-button-background);
       border: 0;
@@ -106,6 +111,38 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       margin-bottom: 12px;
     }
 
+    .language-group {
+      border: 1px solid var(--vscode-panel-border);
+      margin-bottom: 16px;
+    }
+
+    .language-group[hidden] {
+      display: none;
+    }
+
+    .language-header {
+      align-items: center;
+      background: var(--vscode-editorWidget-background);
+      border-bottom: 1px solid var(--vscode-panel-border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: space-between;
+      padding: 10px;
+    }
+
+    .language-title,
+    .language-stats {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .language-files {
+      padding: 10px 10px 0;
+    }
+
     .file[hidden],
     .row[hidden] {
       display: none;
@@ -127,7 +164,7 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       cursor: pointer;
       display: grid;
       gap: 10px;
-      grid-template-columns: 24px 68px minmax(120px, 0.75fr) minmax(220px, 1.25fr) 74px auto;
+      grid-template-columns: 24px 68px minmax(120px, 0.7fr) minmax(220px, 1.2fr) minmax(136px, 0.8fr) auto;
       padding: 8px 10px;
     }
 
@@ -175,6 +212,16 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       color: var(--vscode-editor-foreground);
     }
 
+    .badge.replaceable {
+      background: var(--vscode-inputValidation-infoBackground);
+      color: var(--vscode-editor-foreground);
+    }
+
+    .badge.preview-only {
+      background: var(--vscode-inputValidation-warningBackground);
+      color: var(--vscode-editor-foreground);
+    }
+
     .preview-toolbar {
       align-items: center;
       border: 1px solid var(--vscode-panel-border);
@@ -217,13 +264,26 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       text-align: center;
     }
 
+    .empty strong {
+      color: var(--vscode-editor-foreground);
+      display: block;
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    .empty-languages {
+      margin-top: 10px;
+      overflow-wrap: anywhere;
+    }
+
     .status {
       color: var(--vscode-descriptionForeground);
       min-height: 20px;
     }
 
     .value-cell,
-    .replacement-cell {
+    .replacement-cell,
+    .row-meta {
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -342,15 +402,54 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
     if (!preview.files.length) {
       const empty = document.createElement('div');
       empty.className = 'empty';
-      empty.textContent = 'No hardcoded colors found.';
+      const title = document.createElement('strong');
+      title.textContent = 'No hardcoded colors found.';
+      const detail = document.createElement('div');
+      detail.textContent = 'Color Token Manager scans enabled JavaScript, TypeScript, CSS, HTML inline styles, and preview-only languages.';
+      empty.append(title, detail);
+      if (preview.supportedLanguages && preview.supportedLanguages.length) {
+        const languageList = document.createElement('div');
+        languageList.className = 'empty-languages';
+        languageList.textContent = 'Supported languages: ' + preview.supportedLanguages.join(', ');
+        empty.appendChild(languageList);
+      }
       files.appendChild(empty);
       document.getElementById('apply').disabled = true;
     }
 
-    preview.files.forEach((file) => {
+    const languageGroups = groupFilesByLanguage(preview.files);
+    languageGroups.forEach((group) => {
+      const groupSection = document.createElement('section');
+      groupSection.className = 'language-group';
+      groupSection.dataset.language = group.languageName;
+
+      const groupHeader = document.createElement('div');
+      groupHeader.className = 'language-header';
+      const titleWrap = document.createElement('div');
+      titleWrap.className = 'language-title';
+      const title = document.createElement('h2');
+      title.textContent = group.languageName;
+      const statusBadge = document.createElement('span');
+      statusBadge.className = 'badge ' + (group.isPreviewOnly ? 'preview-only' : 'replaceable');
+      statusBadge.textContent = group.replacementStatus;
+      titleWrap.append(title, statusBadge);
+
+      const stats = document.createElement('div');
+      stats.className = 'language-stats meta';
+      stats.textContent = group.colorCount + ' ' + (group.colorCount === 1 ? 'color' : 'colors') + ' found';
+      groupHeader.append(titleWrap, stats);
+      groupSection.appendChild(groupHeader);
+
+      const groupFiles = document.createElement('div');
+      groupFiles.className = 'language-files';
+      groupSection.appendChild(groupFiles);
+
+      group.files.forEach((file) => {
       const fileIndex = preview.files.indexOf(file);
       const section = document.createElement('section');
       section.className = 'file';
+      section.dataset.language = file.languageName;
+      section.dataset.replacementStatus = file.replacementStatus;
 
       const header = document.createElement('div');
       header.className = 'file-header';
@@ -371,6 +470,19 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       const headerText = document.createElement('span');
       headerText.textContent = file.filePath;
       header.append(fileToggle, headerText);
+
+      const languageBadge = document.createElement('span');
+      languageBadge.className = 'badge';
+      languageBadge.textContent = file.languageName;
+      header.append(languageBadge);
+
+      const statusBadge = document.createElement('span');
+      statusBadge.className = 'badge ' + (file.isPreviewOnly ? 'preview-only' : 'replaceable');
+      statusBadge.textContent = file.replacementStatus;
+      statusBadge.title = file.isPreviewOnly
+        ? 'Replacement is disabled for this language.'
+        : 'Replacement can be applied after preview.';
+      header.append(statusBadge);
       section.appendChild(header);
 
       file.replacements.forEach((replacement, replacementIndex) => {
@@ -378,6 +490,7 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
         row.className = 'row';
         row.dataset.action = replacement.action;
         row.dataset.fileIndex = String(fileIndex);
+        row.dataset.languageGroup = file.languageName;
         row.addEventListener('click', () => {
           vscode.postMessage({
             type: 'openPreviewOccurrence',
@@ -390,7 +503,7 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
         const enabled = document.createElement('input');
         enabled.type = 'checkbox';
         enabled.checked = replacement.action !== 'skip' && replacement.enabled !== false;
-        enabled.disabled = replacement.action === 'skip';
+        enabled.disabled = replacement.action === 'skip' || file.isPreviewOnly;
         enabled.dataset.enabledFileIndex = String(fileIndex);
         enabled.dataset.enabledReplacementIndex = String(replacementIndex);
         enabled.setAttribute('aria-label', 'Apply ' + replacement.value + ' on line ' + replacement.line);
@@ -438,12 +551,12 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
           token.addEventListener('click', (event) => event.stopPropagation());
         } else {
           token = document.createElement('code');
-          token.textContent = getReplacementPreview(file.filePath, replacement, replacement.tokenName);
+          token.textContent = getReplacementPreview(file, replacement, replacement.tokenName);
         }
 
         const tokenPreview = document.createElement('code');
         tokenPreview.className = 'token-preview';
-        tokenPreview.textContent = getReplacementPreview(file.filePath, replacement, replacement.tokenName);
+        tokenPreview.textContent = getReplacementPreview(file, replacement, replacement.tokenName);
 
         if (replacement.aliasOf) {
           token.title = 'Alias of colors.' + replacement.aliasOf;
@@ -452,15 +565,21 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
 
         if (token.tagName === 'INPUT') {
           token.addEventListener('input', () => {
-            tokenPreview.textContent = getReplacementPreview(file.filePath, replacement, token.value.trim());
+            tokenPreview.textContent = getReplacementPreview(file, replacement, token.value.trim());
           });
           replacementCell.append(replacementLabel, token, tokenPreview);
         } else {
           replacementCell.append(replacementLabel, token);
         }
 
+        const metaCell = document.createElement('div');
+        metaCell.className = 'row-meta';
         const line = document.createElement('span');
-        line.textContent = 'line ' + replacement.line;
+        line.textContent = file.filePath + ':' + replacement.line;
+        const status = document.createElement('span');
+        status.className = 'meta';
+        status.textContent = file.languageName + ' | ' + file.replacementStatus;
+        metaCell.append(line, status);
 
         const open = document.createElement('button');
         open.className = 'open-button';
@@ -476,15 +595,48 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
           });
         });
 
-        row.append(enabled, action, valueCell, replacementCell, line, open);
+        row.append(enabled, action, valueCell, replacementCell, metaCell, open);
         section.appendChild(row);
       });
 
-      files.appendChild(section);
+      groupFiles.appendChild(section);
+      });
+
+      files.appendChild(groupSection);
     });
 
     syncAllFileToggles();
     applyFilter();
+
+    function groupFilesByLanguage(files) {
+      const groups = [];
+      const groupByName = new Map();
+
+      files.forEach((file) => {
+        const languageName = file.languageName || file.adapterId || 'Other';
+        if (!groupByName.has(languageName)) {
+          const group = {
+            languageName,
+            replacementStatus: file.replacementStatus || (file.isPreviewOnly ? 'Preview only' : 'Replacement enabled'),
+            isPreviewOnly: Boolean(file.isPreviewOnly),
+            colorCount: 0,
+            files: []
+          };
+          groupByName.set(languageName, group);
+          groups.push(group);
+        }
+
+        const group = groupByName.get(languageName);
+        group.files.push(file);
+        group.colorCount += file.replacements.length;
+        group.isPreviewOnly = group.isPreviewOnly && Boolean(file.isPreviewOnly);
+        if (!file.isPreviewOnly) {
+          group.replacementStatus = 'Replacement enabled';
+        }
+      });
+
+      return groups;
+    }
 
     function collectEditedPreview() {
       const next = JSON.parse(JSON.stringify(preview));
@@ -547,6 +699,11 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       document.querySelectorAll('section.file').forEach((section) => {
         const hasVisibleRows = Array.from(section.querySelectorAll('.row[data-action]')).some((row) => !row.hidden);
         section.hidden = !hasVisibleRows;
+      });
+
+      document.querySelectorAll('section.language-group').forEach((section) => {
+        const hasVisibleFiles = Array.from(section.querySelectorAll('section.file')).some((file) => !file.hidden);
+        section.hidden = !hasVisibleFiles;
       });
 
       updateSelectionSummary();
@@ -612,13 +769,13 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       return Array.from(document.querySelectorAll('.row[data-action]')).filter((row) => !row.hidden);
     }
 
-    function getReplacementPreview(filePath, replacement, tokenName) {
+    function getReplacementPreview(file, replacement, tokenName) {
       if (replacement.action === 'skip') {
         return 'No edit';
       }
 
       const nextTokenName = tokenName || replacement.tokenName;
-      if (/\\.(css|scss|less)$/i.test(filePath)) {
+      if (file.adapterId === 'css' || file.adapterId === 'html' || /\\.(css|scss|less|html|htm)$/i.test(file.filePath)) {
         return 'var(--color-' + toCssVariableSuffix(nextTokenName) + ')';
       }
 

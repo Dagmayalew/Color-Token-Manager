@@ -5,15 +5,16 @@ Color Token Manager helps React Native and TypeScript projects manage color toke
 It can:
 
 - Read and edit color tokens from existing color, theme, or token files
-- Detect hardcoded colors in TypeScript, JavaScript, Vue, and CSS-family files
+- Detect hardcoded colors across JavaScript, TypeScript, CSS-family files, HTML inline styles, and preview-only languages
 - Support `#RGB`, `#RRGGBB`, `rgb()`, `rgba()`, `hsl()`, and `hsla()` literals
 - Underline hardcoded colors and offer an editor quick fix
 - Show inline color swatches next to hardcoded colors
 - Warn when text-like tokens fail WCAG contrast against background tokens
 - Audit theme readiness for light/dark token groups, duplicate values, unused tokens, and contrast risks
 - Extract hardcoded colors into reusable tokens
-- Replace hardcoded values with `colors.tokenName`
+- Replace hardcoded JavaScript/TypeScript values with token references and CSS/HTML inline values with CSS variables
 - Preview current selection or folder-wide extraction before applying edits
+- Group extraction previews by language with clear replacement-enabled or preview-only status
 - Filter preview rows by new, alias, reused, or skipped replacements
 - Apply only selected preview rows with checkboxes and select/deselect visible controls
 - Rename a token and update project references
@@ -54,9 +55,73 @@ The setup wizard can:
 
 After setup, choose **Open Manager** or **Preview Current File** to continue safely.
 
+## Multi-Language Support
+
+Color Token Manager uses language adapters so each file type can define safe scan and replacement behavior. Safe mode is the default: JavaScript, TypeScript, CSS/SCSS/LESS, and HTML inline styles can be replaced after preview; other popular languages are scanned for visibility but stay preview-only.
+
+| Language | Scan | Replace |
+| --- | ---: | ---: |
+| JavaScript | yes | yes |
+| TypeScript | yes | yes |
+| JSX/TSX | yes | yes |
+| CSS/SCSS/LESS | yes | yes |
+| HTML inline styles | yes | yes |
+| Dart | yes | Preview only |
+| Swift | yes | Preview only |
+| Kotlin | yes | Preview only |
+| Java | yes | Preview only |
+| Go | yes | Preview only |
+| Python | yes | Preview only |
+| PHP | yes | Preview only |
+| Ruby | yes | Preview only |
+| JSON/YAML/XML/SVG/Markdown | yes | Preview only |
+
+CSS, SCSS, LESS, and HTML inline style replacements use CSS variables:
+
+```css
+color: var(--color-primary-500);
+background-color: var(--color-background);
+```
+
+The preview panel groups findings by language and shows whether replacements are enabled or preview-only before anything is applied.
+
+### Language Settings
+
+Control scanned languages with:
+
+```json
+"colorTokenManager.enabledLanguages": [
+  "javascript",
+  "typescript",
+  "css",
+  "html",
+  "dart"
+]
+```
+
+Control replacement aggressiveness with:
+
+```json
+"colorTokenManager.languageMode": "safe"
+```
+
+Modes:
+
+| Value | Behavior |
+| --- | --- |
+| `safe` | Replace only adapters with safe replacement support; preview-only languages cannot apply edits. |
+| `scanOnly` | Scan enabled languages and show previews, but do not replace anything. |
+| `experimental` | Allow replacement only for adapters that explicitly support replacement. |
+
+CSS token output currently supports:
+
+```json
+"colorTokenManager.cssTokenFormat": "cssVariable"
+```
+
 ## Editor Quick Fix
 
-Open a supported `.ts`, `.tsx`, `.js`, `.jsx`, `.vue`, `.css`, `.scss`, or `.less` file. Hardcoded color literals are underlined with a hint diagnostic and shown with inline swatches. Use the lightbulb action **Extract this color** to open a preview for that exact occurrence.
+Open a supported file. Hardcoded color literals are underlined with a hint diagnostic and shown with inline swatches. Replaceable languages can offer direct quick fixes when an exact token exists. Preview-only languages offer **Open extraction preview** instead of unsafe edits.
 
 ## Contrast Checks
 
@@ -177,7 +242,7 @@ The older setting `colorTokenManager.importStyle` is deprecated and will be remo
 
 ## Safety
 
-Folder-wide extraction can change many files. Use **Preview Colors From Folder** first, filter the proposed replacements, uncheck anything you do not want to apply, edit token names if needed, and then apply selected changes from the preview panel.
+Folder-wide extraction can change many files. Use **Preview Colors From Folder** first, filter the proposed replacements, review the language groups, uncheck anything you do not want to apply, edit token names if needed, and then apply selected changes from the preview panel. Preview-only language findings are shown for review but are not applied.
 
 ## MCP Server
 

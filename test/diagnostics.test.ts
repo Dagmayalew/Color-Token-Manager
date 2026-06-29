@@ -25,6 +25,8 @@ test('colorCodeActionProvider returns replacement quick fix when matching token 
   const sourceText = `const style = { color: '#FF6B00' };`;
   const document = {
     uri: vscode.Uri.file(path.join(fixturePath(), 'src/app.tsx')),
+    fileName: path.join(fixturePath(), 'src/app.tsx'),
+    languageId: 'typescriptreact',
     getText() {
       return sourceText;
     },
@@ -94,6 +96,8 @@ test('colorCodeActionProvider returns only extraction action when matching token
   const sourceText = `const style = { color: '#000000' };`;
   const document = {
     uri: vscode.Uri.file(path.join(fixturePath(), 'src/app.tsx')),
+    fileName: path.join(fixturePath(), 'src/app.tsx'),
+    languageId: 'typescriptreact',
     getText() {
       return sourceText;
     },
@@ -141,4 +145,103 @@ test('colorCodeActionProvider returns only extraction action when matching token
   assert.ok(extractAction, '"Extract this color" action should always be present');
   assert.equal(extractAction.kind, vscode.CodeActionKind.QuickFix);
   assert.ok(extractAction.command);
+});
+
+test('colorCodeActionProvider opens preview only for preview-only languages', async () => {
+  setColorTokenManagerConfig({
+    colorsFilePath: 'colors/flat.ts',
+  });
+
+  const sourceText = `const color = '#FF6B00';`;
+  const document = {
+    uri: vscode.Uri.file(path.join(fixturePath(), 'lib/main.dart')),
+    fileName: path.join(fixturePath(), 'lib/main.dart'),
+    languageId: 'dart',
+    getText() {
+      return sourceText;
+    },
+    positionAt(offset: number) {
+      if (offset === 14) return new vscode.Position(0, 14);
+      if (offset === 23) return new vscode.Position(0, 23);
+      return new vscode.Position(0, 0);
+    },
+    offsetAt(pos: vscode.Position) {
+      if (pos.line === 0 && pos.character === 14) return 14;
+      if (pos.line === 0 && pos.character === 23) return 23;
+      return 0;
+    },
+  } as vscode.TextDocument;
+
+  const range = new vscode.Range(new vscode.Position(0, 14), new vscode.Position(0, 23));
+  const diagnostic = new vscode.Diagnostic(
+    range,
+    'Hardcoded color #FF6B00 can be extracted to a color token.',
+    vscode.DiagnosticSeverity.Hint,
+  );
+  diagnostic.source = 'Color Token Manager';
+  diagnostic.code = 'hardcoded-color';
+
+  const actions = (await colorCodeActionProvider.provideCodeActions(
+    document,
+    range,
+    { diagnostics: [diagnostic] } as unknown as vscode.CodeActionContext,
+    {} as vscode.CancellationToken,
+  )) as vscode.CodeAction[];
+
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0].title, 'Open extraction preview');
+  assert.equal(actions[0].kind, vscode.CodeActionKind.QuickFix);
+  assert.equal(actions[0].isPreferred, true);
+  assert.ok(actions[0].command);
+  assert.equal(actions[0].command!.command, 'colorTokenManager.previewColorAtRange');
+  assert.equal(actions[0].edit, undefined);
+});
+
+test('colorCodeActionProvider uses CSS variable replacements for CSS quick fixes', async () => {
+  setColorTokenManagerConfig({
+    colorsFilePath: 'colors/flat.ts',
+  });
+
+  const sourceText = `.button { color: #FF6B00; }`;
+  const document = {
+    uri: vscode.Uri.file(path.join(fixturePath(), 'src/styles.css')),
+    fileName: path.join(fixturePath(), 'src/styles.css'),
+    languageId: 'css',
+    getText() {
+      return sourceText;
+    },
+    positionAt(offset: number) {
+      if (offset === 17) return new vscode.Position(0, 17);
+      if (offset === 24) return new vscode.Position(0, 24);
+      return new vscode.Position(0, 0);
+    },
+    offsetAt(pos: vscode.Position) {
+      if (pos.line === 0 && pos.character === 17) return 17;
+      if (pos.line === 0 && pos.character === 24) return 24;
+      return 0;
+    },
+  } as vscode.TextDocument;
+
+  const range = new vscode.Range(new vscode.Position(0, 17), new vscode.Position(0, 24));
+  const diagnostic = new vscode.Diagnostic(
+    range,
+    'Hardcoded color #FF6B00 can be extracted to a color token.',
+    vscode.DiagnosticSeverity.Hint,
+  );
+  diagnostic.source = 'Color Token Manager';
+  diagnostic.code = 'hardcoded-color';
+
+  const actions = (await colorCodeActionProvider.provideCodeActions(
+    document,
+    range,
+    { diagnostics: [diagnostic] } as unknown as vscode.CodeActionContext,
+    {} as vscode.CancellationToken,
+  )) as vscode.CodeAction[];
+
+  const replaceAction = actions.find((a) => a.title === 'Replace with colors.primary');
+  assert.ok(replaceAction);
+  assert.ok(replaceAction.edit);
+  const replacements = (replaceAction.edit as any).replacements;
+  assert.equal(replacements.length, 1);
+  assert.equal(replacements[0].newText, 'var(--color-primary)');
 });

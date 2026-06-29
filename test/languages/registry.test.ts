@@ -18,6 +18,8 @@ test('getAdapterByLanguageId returns correct adapter', () => {
   assert.strictEqual(getAdapterByLanguageId('typescript'), typescriptAdapter);
   assert.strictEqual(getAdapterByLanguageId('javascript'), javascriptAdapter);
   assert.strictEqual(getAdapterByLanguageId('css'), cssAdapter);
+  assert.strictEqual(getAdapterByLanguageId('scss'), cssAdapter);
+  assert.strictEqual(getAdapterByLanguageId('less'), cssAdapter);
   assert.strictEqual(getAdapterByLanguageId('html'), htmlAdapter);
   assert.strictEqual(getAdapterByLanguageId('unknown-lang'), genericAdapter);
 });
@@ -68,6 +70,8 @@ test('getSupportedLanguageIds includes known languages', () => {
   assert.ok(langs.includes('typescript'));
   assert.ok(langs.includes('javascript'));
   assert.ok(langs.includes('css'));
+  assert.ok(langs.includes('scss'));
+  assert.ok(langs.includes('less'));
   assert.ok(langs.includes('html'));
 });
 

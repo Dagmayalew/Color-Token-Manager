@@ -108,6 +108,7 @@ export function buildPreviewForDocument(
   planner: PreviewPlanner,
   adapterId = 'generic',
   isPreviewOnly = false,
+  languageName = adapterId,
 ): FileExtractionPreview {
   return buildPreviewForUri(
     document.uri,
@@ -116,6 +117,7 @@ export function buildPreviewForDocument(
     (offset) => document.positionAt(offset),
     adapterId,
     isPreviewOnly,
+    languageName,
   );
 }
 
@@ -126,6 +128,7 @@ export function buildPreviewForUri(
   positionAt: (offset: number) => { line: number; character: number },
   adapterId = 'generic',
   isPreviewOnly = false,
+  languageName = adapterId,
 ): FileExtractionPreview {
   const autoReplaceExistingColors = vscode.workspace
     .getConfiguration('colorTokenManager')
@@ -160,7 +163,7 @@ export function buildPreviewForUri(
             value: extracted.value,
             tokenName,
             action: 'alias',
-            enabled: true,
+            enabled: !isPreviewOnly,
             aliasOf: existingToken,
             line: positionAt(extracted.start).line + 1,
             start: extracted.start,
@@ -170,7 +173,7 @@ export function buildPreviewForUri(
             value: extracted.value,
             tokenName: existingToken,
             action: 'reuse',
-            enabled: true,
+            enabled: !isPreviewOnly,
             line: positionAt(extracted.start).line + 1,
             start: extracted.start,
           });
@@ -180,7 +183,7 @@ export function buildPreviewForUri(
           value: extracted.value,
           tokenName: existingToken,
           action: 'skip',
-          enabled: true,
+          enabled: !isPreviewOnly,
           line: positionAt(extracted.start).line + 1,
           start: extracted.start,
         });
@@ -195,7 +198,7 @@ export function buildPreviewForUri(
       value: extracted.value,
       tokenName,
       action: 'add',
-      enabled: true,
+      enabled: !isPreviewOnly,
       line: positionAt(extracted.start).line + 1,
       start: extracted.start,
     });
@@ -205,7 +208,9 @@ export function buildPreviewForUri(
     filePath: vscode.workspace.asRelativePath(uri),
     fileUri: uri.toString(),
     adapterId,
+    languageName,
     isPreviewOnly,
+    replacementStatus: isPreviewOnly ? 'Preview only' : 'Replacement enabled',
     replacements,
   };
 }
