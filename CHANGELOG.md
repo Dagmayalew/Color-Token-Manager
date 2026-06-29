@@ -18,9 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added enabled languages setting.
 - Added safe/scan-only/experimental language modes.
 - Added language grouping in preview.
-
-### Added
-
 - Added automatic token/theme file detection (`src/tokenDetection.ts`) with confidence ranking for `src/theme/colors.ts`, `src/theme/theme.ts`, `src/tokens.ts`, and other common paths.
 - Added `colorTokenManager.detectSetup` command to scan the workspace and set the active token file from a ranked list.
 - Added `colorTokenManager.resetSetup` command to clear all token file settings from workspace configuration.

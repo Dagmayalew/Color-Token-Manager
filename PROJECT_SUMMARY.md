@@ -19,24 +19,24 @@ This file is for people working on the extension repo. It does not duplicate the
 
 ## Source layout
 
-| File                    | Role                                                     |
-| ----------------------- | -------------------------------------------------------- |
-| `src/extension.ts`      | Activation, commands, webview message routing            |
-| `src/workspaceUtils.ts` | Multi-root workspace folder / configured path resolution |
-| `src/globUtils.ts`      | Glob → RegExp for exclude paths                          |
-| `src/colorScan.ts`      | Find hardcoded color literals in source text             |
-| `src/colorPlan.ts`      | Token naming, preview planning, preview validation       |
-| `src/colorApply.ts`     | Apply extractions, folder/selection workflows            |
-| `src/colorExtractor.ts` | Public re-exports (stable import path)                   |
+| File                    | Role                                                      |
+| ----------------------- | --------------------------------------------------------- |
+| `src/extension.ts`      | Activation, commands, webview message routing             |
+| `src/workspaceUtils.ts` | Multi-root workspace folder / configured path resolution  |
+| `src/globUtils.ts`      | Glob → RegExp for exclude paths                           |
+| `src/colorScan.ts`      | Find hardcoded color literals in source text              |
+| `src/colorPlan.ts`      | Token naming, preview planning, preview validation        |
+| `src/colorApply.ts`     | Apply extractions, folder/selection workflows             |
+| `src/colorExtractor.ts` | Public re-exports (stable import path)                    |
 | `src/languages/`        | Language adapters, registry, replacement capability rules |
-| `src/colorFile.ts`      | Read/write `colors.ts` (object-literal scanner)          |
-| `src/diagnostics.ts`    | Underlines, swatches, quick fixes                        |
-| `src/tokenTools.ts`     | Rename, unused tokens, design-token export               |
-| `src/importUtils.ts`    | Import insertion and identifier modes                    |
-| `src/webview.ts`        | Main manager UI HTML                                     |
-| `src/previewWebview.ts` | Extraction preview UI                                    |
-| `src/resultsWebview.ts` | Post-apply results UI                                    |
-| `src/types.ts`          | Shared types                                             |
+| `src/colorFile.ts`      | Read/write `colors.ts` (object-literal scanner)           |
+| `src/diagnostics.ts`    | Underlines, swatches, quick fixes                         |
+| `src/tokenTools.ts`     | Rename, unused tokens, design-token export                |
+| `src/importUtils.ts`    | Import insertion and identifier modes                     |
+| `src/webview.ts`        | Main manager UI HTML                                      |
+| `src/previewWebview.ts` | Extraction preview UI                                     |
+| `src/resultsWebview.ts` | Post-apply results UI                                     |
+| `src/types.ts`          | Shared types                                              |
 
 ## Build
 
@@ -62,16 +62,16 @@ Debug: **F5** (`Run Extension` in `.vscode/launch.json`, `preLaunchTask`: `npm: 
 
 Multi-language support is routed through `src/languages/`.
 
-| File | Role |
-| --- | --- |
-| `src/languages/types.ts` | Shared `LanguageAdapter` and `LanguageMode` types |
-| `src/languages/registry.ts` | Adapter lookup, enabled-language filtering, safe/scan-only/experimental mode behavior |
-| `src/languages/javascriptAdapter.ts` | JavaScript/JSX scan, token reference, and import behavior |
-| `src/languages/typescriptAdapter.ts` | TypeScript/TSX scan, token reference, and import behavior |
-| `src/languages/cssAdapter.ts` | CSS/SCSS/LESS scanning and CSS variable replacements |
-| `src/languages/htmlAdapter.ts` | HTML inline-style-only scanning and CSS variable replacements |
+| File                                   | Role                                                                                                        |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `src/languages/types.ts`               | Shared `LanguageAdapter` and `LanguageMode` types                                                           |
+| `src/languages/registry.ts`            | Adapter lookup, enabled-language filtering, safe/scan-only/experimental mode behavior                       |
+| `src/languages/javascriptAdapter.ts`   | JavaScript/JSX scan, token reference, and import behavior                                                   |
+| `src/languages/typescriptAdapter.ts`   | TypeScript/TSX scan, token reference, and import behavior                                                   |
+| `src/languages/cssAdapter.ts`          | CSS/SCSS/LESS scanning and CSS variable replacements                                                        |
+| `src/languages/htmlAdapter.ts`         | HTML inline-style-only scanning and CSS variable replacements                                               |
 | `src/languages/previewOnlyAdapters.ts` | Scan-only adapters for Dart, Swift, Kotlin, Java, Go, Python, PHP, Ruby, JSON, YAML, XML, SVG, and Markdown |
-| `src/languages/genericAdapter.ts` | Scan-only fallback |
+| `src/languages/genericAdapter.ts`      | Scan-only fallback                                                                                          |
 
 Adapter rules:
 

@@ -59,22 +59,22 @@ After setup, choose **Open Manager** or **Preview Current File** to continue saf
 
 Color Token Manager uses language adapters so each file type can define safe scan and replacement behavior. Safe mode is the default: JavaScript, TypeScript, CSS/SCSS/LESS, and HTML inline styles can be replaced after preview; other popular languages are scanned for visibility but stay preview-only.
 
-| Language | Scan | Replace |
-| --- | ---: | ---: |
-| JavaScript | yes | yes |
-| TypeScript | yes | yes |
-| JSX/TSX | yes | yes |
-| CSS/SCSS/LESS | yes | yes |
-| HTML inline styles | yes | yes |
-| Dart | yes | Preview only |
-| Swift | yes | Preview only |
-| Kotlin | yes | Preview only |
-| Java | yes | Preview only |
-| Go | yes | Preview only |
-| Python | yes | Preview only |
-| PHP | yes | Preview only |
-| Ruby | yes | Preview only |
-| JSON/YAML/XML/SVG/Markdown | yes | Preview only |
+| Language                   | Scan |      Replace |
+| -------------------------- | ---: | -----------: |
+| JavaScript                 |  yes |          yes |
+| TypeScript                 |  yes |          yes |
+| JSX/TSX                    |  yes |          yes |
+| CSS/SCSS/LESS              |  yes |          yes |
+| HTML inline styles         |  yes |          yes |
+| Dart                       |  yes | Preview only |
+| Swift                      |  yes | Preview only |
+| Kotlin                     |  yes | Preview only |
+| Java                       |  yes | Preview only |
+| Go                         |  yes | Preview only |
+| Python                     |  yes | Preview only |
+| PHP                        |  yes | Preview only |
+| Ruby                       |  yes | Preview only |
+| JSON/YAML/XML/SVG/Markdown |  yes | Preview only |
 
 CSS, SCSS, LESS, and HTML inline style replacements use CSS variables:
 
@@ -107,11 +107,11 @@ Control replacement aggressiveness with:
 
 Modes:
 
-| Value | Behavior |
-| --- | --- |
-| `safe` | Replace only adapters with safe replacement support; preview-only languages cannot apply edits. |
-| `scanOnly` | Scan enabled languages and show previews, but do not replace anything. |
-| `experimental` | Allow replacement only for adapters that explicitly support replacement. |
+| Value          | Behavior                                                                                        |
+| -------------- | ----------------------------------------------------------------------------------------------- |
+| `safe`         | Replace only adapters with safe replacement support; preview-only languages cannot apply edits. |
+| `scanOnly`     | Scan enabled languages and show previews, but do not replace anything.                          |
+| `experimental` | Allow replacement only for adapters that explicitly support replacement.                        |
 
 CSS token output currently supports:
 
