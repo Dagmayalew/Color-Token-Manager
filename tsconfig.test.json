@@ -21,6 +21,8 @@
     "src/mcpServer.ts",
     "src/importUtils.ts",
     "src/tokenTools.ts",
+    "src/themeAudit.ts",
+    "src/mcpStandalone.ts",
     "src/types.ts",
     "test/**/*.ts"
   ],

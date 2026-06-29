@@ -10,6 +10,7 @@ import { extractHardcodedColorsFromText, generateTokenName } from './colorExtrac
 import { buildPreviewForDocument, createPreviewPlanner } from './colorPlan';
 import { getContrastRatio } from './colorUtils';
 import { findUnusedColors, serializeTokens, toNestedObject, type ExportFormat } from './tokenTools';
+import { buildThemeAuditReport } from './themeAudit';
 
 const SERVER_NAME = 'color-token-manager';
 const SERVER_VERSION = '0.2.0';
@@ -32,7 +33,12 @@ type JsonRpcRequest = {
   params?: unknown;
 };
 
-type ToolName = 'extract_from_file' | 'suggest_token_name' | 'get_contrast';
+type ToolName =
+  | 'extract_from_file'
+  | 'suggest_token_name'
+  | 'get_contrast'
+  | 'audit_project'
+  | 'audit_contrast';
 
 export type McpToolResult = {
   content: Array<{ type: 'text'; text: string }>;
@@ -117,6 +123,10 @@ export class ColorTokenMcpServer implements vscode.Disposable {
       };
     }
 
+    if (uri === 'colors://report') {
+      return (await buildThemeAuditReport(await getActiveColorsFile())) as unknown as JsonValue;
+    }
+
     const exportMatch = uri.match(/^colors:\/\/exports\/([a-z]+)$/);
     if (exportMatch) {
       const formatKey = exportMatch[1] as keyof typeof EXPORT_FORMAT_BY_KEY;
@@ -157,6 +167,21 @@ export class ColorTokenMcpServer implements vscode.Disposable {
 
     if (name === 'get_contrast') {
       return jsonToolResult(await getTokenContrast(args));
+    }
+
+    if (name === 'audit_project') {
+      return jsonToolResult(await buildThemeAuditReport(await getActiveColorsFile()));
+    }
+
+    if (name === 'audit_contrast') {
+      const report = await buildThemeAuditReport(await getActiveColorsFile());
+      return jsonToolResult({
+        colorsFile: report.colorsFile,
+        contrastRisks: report.contrastRisks,
+        suggestedNextActions: report.suggestedNextActions.filter((action) =>
+          /contrast/i.test(action),
+        ),
+      });
     }
 
     throw new Error(`Unknown MCP tool: ${name}`);
@@ -281,7 +306,9 @@ export class ColorTokenMcpServer implements vscode.Disposable {
     }
 
     const document = await vscode.workspace.openTextDocument(targetUri);
-    const extractedColors = extractHardcodedColorsFromText(document.getText());
+    const { getAdapterForDocument } = await import('./languages/registry');
+    const adapter = getAdapterForDocument(document);
+    const extractedColors = extractHardcodedColorsFromText(document.getText(), {}, adapter);
     const existingColors = await readColors(colorsFileUri);
     const preview = buildPreviewForDocument(
       document,
@@ -348,6 +375,13 @@ export function listResources(): JsonValue[] {
         'Tokens not referenced by supported project source files. Use this before cleanup suggestions.',
       mimeType: 'application/json',
     },
+    {
+      uri: 'colors://report',
+      name: 'Theme token audit report',
+      description:
+        'Theme-aware token health report with duplicate values, unused tokens, light/dark gaps, contrast risks, and suggested next actions.',
+      mimeType: 'application/json',
+    },
   ];
 
   return [
@@ -407,6 +441,30 @@ export function listTools(): JsonValue[] {
         required: ['dryRun', 'tokenPath', 'againstTokenPath'],
       },
     },
+    {
+      name: 'audit_project',
+      description:
+        'Return the same theme-aware token audit used by the VS Code report. Includes duplicates, aliases, unused tokens, theme gaps, contrast risks, and next actions.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          dryRun: { type: 'boolean' },
+        },
+        required: ['dryRun'],
+      },
+    },
+    {
+      name: 'audit_contrast',
+      description:
+        'Return contrast risks from the theme-aware token audit. Use this before recommending foreground/background token changes.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          dryRun: { type: 'boolean' },
+        },
+        required: ['dryRun'],
+      },
+    },
   ];
 }
 
@@ -419,6 +477,7 @@ export function getMcpHelpResource(): JsonValue {
     safeWorkflow: [
       'Read colors://tokens or colors://tokens/flat before suggesting token edits.',
       'Use colors://tokens/unused before proposing token removal.',
+      'Use colors://report or audit_project with dryRun: true before planning theme work.',
       'Use extract_from_file with dryRun: true before changing source files.',
       'Use suggest_token_name with surrounding code when naming new semantic tokens.',
       'Use get_contrast before changing foreground or background token pairs.',
@@ -428,6 +487,7 @@ export function getMcpHelpResource(): JsonValue {
     tools: listTools(),
     examplePrompts: [
       'List unused color tokens and explain which ones look safe to remove.',
+      'Audit the project theme tokens with audit_project and list the highest-priority fixes.',
       'Preview extracting colors from src/components/Button.tsx with dryRun: true.',
       'Suggest a name for the backgroundColor in Button.tsx.',
       'Pick one text-like token and one background-like token from colors://tokens/flat, then check their contrast.',
@@ -440,15 +500,22 @@ export function getMcpClientSetupSnippet(
   serverPath?: string,
   colorsFile = 'colors.ts',
   command = 'node',
+  tokenExportName = 'auto',
 ): string {
   return JSON.stringify(
-    getMcpClientConfig(workspacePath, serverPath, colorsFile, command),
+    getMcpClientConfig(workspacePath, serverPath, colorsFile, command, tokenExportName),
     null,
     2,
   );
 }
 
-export type SupportedAiAgent = 'cursor' | 'claude-code' | 'windsurf' | 'codex' | 'gemini' | 'custom';
+export type SupportedAiAgent =
+  | 'cursor'
+  | 'claude-code'
+  | 'windsurf'
+  | 'codex'
+  | 'gemini'
+  | 'custom';
 
 export function getAiAgentChoices(): Array<{
   id: SupportedAiAgent;
@@ -494,12 +561,14 @@ export function getMcpClientConfig(
   serverPath?: string,
   colorsFile = 'colors.ts',
   command = 'node',
+  tokenExportName = 'auto',
 ): McpClientConfig {
   const args = [
     serverPath ?? 'PATH_TO_COLOR_TOKEN_MANAGER/dist/mcp-server.js',
     ...(workspacePath ? ['--workspace', workspacePath] : []),
     '--colors-file',
     colorsFile,
+    ...(tokenExportName !== 'auto' ? ['--token-export-name', tokenExportName] : []),
   ];
 
   return {
@@ -517,10 +586,10 @@ export function getCodexMcpConfigBlock(
   serverPath?: string,
   colorsFile = 'colors.ts',
   command = 'node',
+  tokenExportName = 'auto',
 ): string {
-  const config = getMcpClientConfig(workspacePath, serverPath, colorsFile, command).mcpServers[
-    SERVER_NAME
-  ];
+  const config = getMcpClientConfig(workspacePath, serverPath, colorsFile, command, tokenExportName)
+    .mcpServers[SERVER_NAME];
   return [
     `[mcp_servers."${SERVER_NAME}"]`,
     `command = ${toTomlString(config.command)}`,
@@ -535,8 +604,15 @@ export function upsertCodexMcpConfigToml(
   serverPath?: string,
   colorsFile = 'colors.ts',
   command = 'node',
+  tokenExportName = 'auto',
 ): string {
-  const block = getCodexMcpConfigBlock(workspacePath, serverPath, colorsFile, command);
+  const block = getCodexMcpConfigBlock(
+    workspacePath,
+    serverPath,
+    colorsFile,
+    command,
+    tokenExportName,
+  );
   const normalized = existing.replace(/\r\n/g, '\n');
   const lines = normalized.split('\n');
   const startIndex = lines.findIndex((line) => line.trim() === `[mcp_servers."${SERVER_NAME}"]`);
@@ -731,6 +807,10 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function isToolName(value: unknown): value is ToolName {
   return (
-    value === 'extract_from_file' || value === 'suggest_token_name' || value === 'get_contrast'
+    value === 'extract_from_file' ||
+    value === 'suggest_token_name' ||
+    value === 'get_contrast' ||
+    value === 'audit_project' ||
+    value === 'audit_contrast'
   );
 }

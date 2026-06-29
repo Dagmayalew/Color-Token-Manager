@@ -2,18 +2,18 @@
   "name": "color-token-manager",
   "displayName": "Color Token Manager",
   "description": "Extract hardcoded colors into tokens, manage colors.ts, preview refactors, WCAG contrast checks, and export design tokens for React Native and TypeScript.",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "publisher": "dagmayalew",
   "license": "MIT",
   "pricing": "Free",
-  "homepage": "https://github.com/dagmayalew489/color-token-manager#readme",
+  "homepage": "https://github.com/Dagmayalew/Color-Token-Manager#readme",
   "bugs": {
-    "url": "https://github.com/dagmayalew489/color-token-manager/issues"
+    "url": "https://github.com/Dagmayalew/Color-Token-Manager/issues"
   },
   "qna": "marketplace",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dagmayalew489/color-token-manager"
+    "url": "https://github.com/Dagmayalew/Color-Token-Manager.git"
   },
   "keywords": [
     "color",
@@ -52,7 +52,11 @@
     "onLanguage:scss",
     "onLanguage:less",
     "onStartupFinished",
-    "workspaceContains:**/colors.ts"
+    "workspaceContains:**/colors.ts",
+    "workspaceContains:**/theme.ts",
+    "workspaceContains:**/themes.ts",
+    "workspaceContains:**/tokens.ts",
+    "workspaceContains:**/designTokens.ts"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -94,6 +98,14 @@
         "title": "Find Unused Color Tokens"
       },
       {
+        "command": "colorTokenManager.auditDesignTokens",
+        "title": "Audit Design Tokens"
+      },
+      {
+        "command": "colorTokenManager.auditContrast",
+        "title": "Audit Contrast"
+      },
+      {
         "command": "colorTokenManager.exportTokens",
         "title": "Export Design Tokens"
       },
@@ -128,6 +140,14 @@
       {
         "command": "colorTokenManager.showMcpOutput",
         "title": "Color Token Manager: Show MCP Logs"
+      },
+      {
+        "command": "colorTokenManager.detectSetup",
+        "title": "Color Token Manager: Detect Theme/Color Setup"
+      },
+      {
+        "command": "colorTokenManager.resetSetup",
+        "title": "Color Token Manager: Reset Token Setup"
       }
     ],
     "menus": {
@@ -168,6 +188,12 @@
           "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less"
         },
         {
+          "command": "colorTokenManager.auditDesignTokens"
+        },
+        {
+          "command": "colorTokenManager.auditContrast"
+        },
+        {
           "command": "colorTokenManager.exportTokens",
           "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less"
         },
@@ -196,6 +222,12 @@
         },
         {
           "command": "colorTokenManager.showMcpOutput"
+        },
+        {
+          "command": "colorTokenManager.detectSetup"
+        },
+        {
+          "command": "colorTokenManager.resetSetup"
         }
       ],
       "editor/context": [
@@ -240,10 +272,50 @@
     "configuration": {
       "title": "Color Token Manager",
       "properties": {
+        "colorTokenManager.cssTokenFormat": {
+          "type": "string",
+          "enum": [
+            "cssVariable"
+          ],
+          "default": "cssVariable",
+          "description": "Token format for CSS/SCSS/LESS replacements."
+        },
         "colorTokenManager.colorsFilePath": {
           "type": "string",
           "default": "",
-          "description": "Custom path to colors.ts, relative to the workspace folder of the active file (multi-root safe). Example: src/theme/colors.ts"
+          "description": "Legacy custom path to colors.ts, relative to the workspace folder of the active file. Use tokenFilePath for theme.ts, tokens.ts, or design token files."
+        },
+        "colorTokenManager.tokenFilePath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to the token/theme file, relative to the workspace folder of the active file. Supports colors.ts, theme.ts, themes.ts, tokens.ts, and designTokens.ts."
+        },
+        "colorTokenManager.tokenFile": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the color or theme token file (e.g., src/theme/theme.ts, src/tokens/colors.ts). If empty, Color Token Manager will try to detect it automatically. Takes priority over tokenFilePath and colorsFilePath."
+        },
+        "colorTokenManager.tokenExportName": {
+          "type": "string",
+          "default": "auto",
+          "description": "Token object export to read from the selected token file. Use auto, colors, theme, themes, tokens, designTokens, or a custom variable name."
+        },
+        "colorTokenManager.tokenObject": {
+          "type": "string",
+          "default": "",
+          "description": "Exported object name to read/write tokens from (e.g., colors, theme, tokens, lightTheme). Takes priority over tokenExportName. Used as the named import identifier."
+        },
+        "colorTokenManager.tokenFileKind": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "colors",
+            "theme",
+            "tokens",
+            "custom"
+          ],
+          "default": "auto",
+          "description": "Structural style of the token file. auto detects from the file contents. colors suits flat/nested color objects. theme suits light/dark theme objects. tokens suits generic design-token files."
         },
         "colorTokenManager.importPath": {
           "type": "string",
@@ -264,6 +336,17 @@
           ],
           "default": "semantic",
           "description": "Controls generated token names. semantic can generate nested paths like button.background; contextValue includes context and color value; valueOnly uses only the color value."
+        },
+        "colorTokenManager.colorSeriesMode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "semantic",
+            "scale",
+            "auto"
+          ],
+          "default": "auto",
+          "description": "Controls whether extracted colors are named as flat tokens (off), semantic theme tokens (semantic), numeric color scales like primary.500 (scale), or detected automatically (auto)."
         },
         "colorTokenManager.tokenPathMode": {
           "type": "string",
@@ -378,6 +461,11 @@
           "default": "colors",
           "description": "Identifier to use for inserted color references and imports."
         },
+        "colorTokenManager.referencePrefix": {
+          "type": "string",
+          "default": "",
+          "description": "Prefix used when generating replacement references in code (e.g., colors, theme.colors, tokens.color). Defaults to the tokenObject or importIdentifier value."
+        },
         "colorTokenManager.extractEmbeddedColors": {
           "type": "boolean",
           "default": false,
@@ -396,7 +484,7 @@
     "format:check": "prettier . --check",
     "test": "npm run test:compile && npm run test:run",
     "test:compile": "tsc -p tsconfig.test.json",
-    "test:run": "node --require ./test/setup.cjs --test out-test/test/smoke.test.js out-test/test/colorFile.test.js out-test/test/colorExtractor.test.js out-test/test/globUtils.test.js out-test/test/workspaceUtils.test.js out-test/test/mcpServer.test.js out-test/test/diagnostics.test.js",
+    "test:run": "node --require ./test/setup.cjs --test out-test/test/smoke.test.js out-test/test/colorFile.test.js out-test/test/colorExtractor.test.js out-test/test/globUtils.test.js out-test/test/workspaceUtils.test.js out-test/test/mcpServer.test.js out-test/test/themeAudit.test.js out-test/test/diagnostics.test.js out-test/test/themeTokenSupport.test.js out-test/test/tokenDetection.test.js out-test/test/tokenNaming.test.js out-test/test/importUtils.test.js out-test/test/cssAdapter.test.js out-test/test/htmlAdapter.test.js out-test/test/javascriptTypescriptAdapters.test.js out-test/test/languages/registry.test.js",
     "test:integration": "npm run compile && npm run test:integration:compile && node ./out-test/test/runTest.js",
     "test:integration:compile": "tsc -p tsconfig.integration.json",
     "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js --minify && esbuild src/mcpStandalone.ts --bundle --platform=node --format=cjs --outfile=dist/mcp-server.js --minify",

@@ -1,17 +1,19 @@
 import type * as vscode from 'vscode';
-import { type AppColor } from './types';
+import { type AppColor, type ThemeAwareColorPlan } from './types';
 
 export function getWebviewHtml(
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
   fileUri: vscode.Uri,
   colors: AppColor[],
+  colorPlans: ThemeAwareColorPlan[] = [],
 ): string {
   const nonce = getNonce();
   const cspSource = webview.cspSource;
   const payload = JSON.stringify({
     filePath: fileUri.fsPath,
     colors,
+    colorPlans,
   })
     .replace(/&/g, '\\u0026')
     .replace(/</g, '\\u003c')
@@ -340,6 +342,51 @@ export function getWebviewHtml(
       padding: 32px 20px;
     }
 
+    .empty-state.fullpage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: 16px;
+      padding: 48px 24px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .empty-state.fullpage h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin: 0;
+      color: var(--vscode-editor-foreground);
+    }
+
+    .empty-state.fullpage p {
+      font-size: 13px;
+      margin: 0;
+      max-width: 40ch;
+      line-height: 1.55;
+    }
+
+    .empty-state.fullpage .action-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .setup-badge {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      background: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
     @keyframes flash-success {
       0% { background: var(--vscode-terminal-ansiGreen); }
       100% { background: var(--vscode-button-background); }
@@ -390,6 +437,54 @@ export function getWebviewHtml(
         grid-column: 2;
       }
     }
+
+    .detected-card {
+      display: grid;
+      grid-template-columns: 40px 1fr auto;
+      align-items: start;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 10px;
+      background: var(--surface-3);
+    }
+
+    .detected-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .detected-header {
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .detected-header code {
+      font-family: var(--vscode-editor-font-family);
+    }
+
+    .detected-suggestion {
+      font-size: 12px;
+      color: var(--vscode-editor-foreground);
+    }
+
+    .detected-suggestion strong {
+      font-family: var(--vscode-editor-font-family);
+    }
+
+    .detected-alts {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .badge-confidence-high { color: #22c55e; font-weight: 600; }
+    .badge-confidence-medium { color: #f59e0b; font-weight: 600; }
+    .badge-confidence-low { color: var(--text-muted); }
   </style>
 </head>
 <body>
@@ -401,7 +496,7 @@ export function getWebviewHtml(
     </div>
     <div class="header-actions">
       <button id="previewCurrentFile" type="button">Preview Current File</button>
-      <button id="unusedTokens" class="ghost" type="button">Run Audit</button>
+      <button id="auditDesignTokens" class="ghost" type="button">Run Audit</button>
     </div>
   </header>
 
@@ -434,6 +529,9 @@ export function getWebviewHtml(
       </button>
       <button class="nav-button" data-tab="agent" type="button">
         <span>AI Agent</span>
+      </button>
+      <button class="nav-button" data-tab="detected" type="button">
+        <span>Detected</span>
       </button>
       <div style="flex:1"></div>
       <button class="nav-button ghost" id="refresh" type="button">Refresh</button>
@@ -481,9 +579,10 @@ export function getWebviewHtml(
         </div>
         <div class="card">
           <h3>Token Maintenance</h3>
-          <p>Find unused tokens, rename paths safely, or export your current palette in multiple formats.</p>
+          <p>Audit theme readiness, find unused tokens, rename paths safely, or export your current palette in multiple formats.</p>
           <div class="card-actions">
-            <button id="workflowUnused" type="button">Find Unused</button>
+            <button id="workflowAudit" type="button">Audit Tokens</button>
+            <button id="workflowUnused" class="ghost" type="button">Find Unused</button>
             <button id="exportTokensWorkflow" class="ghost" type="button">Export...</button>
           </div>
         </div>
@@ -540,6 +639,12 @@ export function getWebviewHtml(
         </div>
       </div>
     </section>
+
+    <section id="pane-detected" class="content-pane">
+      <h2>Detected Hardcoded Colors</h2>
+      <p class="status-line">Colors found in the active editor file, grouped by value with suggested token names.</p>
+      <div id="detectedGroups"></div>
+    </section>
   </main>
 
   <script nonce="${nonce}">
@@ -554,7 +659,7 @@ export function getWebviewHtml(
 
     const actionMap = {
       previewCurrentFile: 'previewFromCurrentFile',
-      unusedTokens: 'findUnusedTokens',
+      auditDesignTokens: 'auditDesignTokens',
       refresh: 'refresh',
       pickFileAgain: 'pickFileAgain',
       renameToken: 'renameToken',
@@ -564,6 +669,7 @@ export function getWebviewHtml(
       workflowPreviewFolder: 'previewFromFolder',
       workflowExtractFolder: 'extractFromFolder',
       workflowPreviewSelection: 'previewFromSelection',
+      workflowAudit: 'auditDesignTokens',
       workflowUnused: 'findUnusedTokens',
       exportTokensWorkflow: 'exportTokens',
       connectAiAgent: 'connectAiAgent',
@@ -619,6 +725,22 @@ export function getWebviewHtml(
     });
 
     function render() {
+      if (!state.colors || state.colors.length === 0) {
+        const container = document.querySelector('.main-layout');
+        if (container) {
+          container.innerHTML =
+            '<div class="empty-state fullpage">' +
+              '<h2>No color tokens found</h2>' +
+              '<p>No token/theme file is set up yet, or the current file has no color tokens.</p>' +
+              '<div class="action-row">' +
+                '<button onclick="vscode.postMessage({type:&apos;setup&apos;})">Start Setup</button>' +
+                '<button class="ghost" onclick="vscode.postMessage({type:&apos;detectSetup&apos;})">Detect Automatically</button>' +
+              '</div>' +
+            '</div>';
+        }
+        document.getElementById('filePathDisplay').textContent = state.filePath || 'No file loaded';
+        return;
+      }
       const all = state.colors || [];
       const dupes = all.filter((color) => color.duplicateOf).length;
       const aliases = all.filter((color) => color.aliasOf).length;
@@ -631,6 +753,72 @@ export function getWebviewHtml(
       document.getElementById('filePathDisplay').textContent = state.filePath || 'No file loaded';
 
       renderTokenGroups();
+      renderDetectedColors();
+    }
+
+    function renderDetectedColors() {
+      const container = document.getElementById('detectedGroups');
+      if (!container) {
+        return;
+      }
+
+      const plans = (state.colorPlans || []);
+
+      if (!plans.length) {
+        container.innerHTML =
+          '<div class="empty-state">Open a source file — hardcoded colors found there will appear here with token name suggestions.</div>';
+        return;
+      }
+
+      container.innerHTML = '';
+      plans.forEach((plan) => {
+        const card = document.createElement('div');
+        card.className = 'detected-card';
+
+        const swatch = document.createElement('div');
+        swatch.className = 'swatch-large';
+        swatch.style.backgroundColor = plan.colorValue;
+        swatch.title = plan.colorValue;
+
+        const info = document.createElement('div');
+        info.className = 'detected-info';
+
+        const header = document.createElement('div');
+        header.className = 'detected-header';
+        const count = plan.occurrences.length;
+        const countBadge = '<span class="badge">' + count + ' use' + (count !== 1 ? 's' : '') + '</span>';
+        header.innerHTML = '<code>' + plan.colorValue + '</code>' + countBadge;
+
+        const confClass = 'badge-confidence-' + plan.confidence;
+        const suggestion = document.createElement('div');
+        suggestion.className = 'detected-suggestion';
+        suggestion.innerHTML = '\u2192 <strong>' + plan.suggestedReference + '</strong> <span class="' + confClass + '">' + plan.confidence + '</span>';
+
+        info.appendChild(header);
+        info.appendChild(suggestion);
+
+        if (plan.alternatives && plan.alternatives.length) {
+          const alts = document.createElement('div');
+          alts.className = 'detected-alts';
+          alts.textContent = 'Alt: ' + plan.alternatives.slice(0, 2).join(', ');
+          info.appendChild(alts);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'card-actions';
+        const btn = document.createElement('button');
+        btn.textContent = 'Preview';
+        btn.title = 'Open extraction preview for the active file';
+        btn.addEventListener('click', () => {
+          vscode.postMessage({ type: 'previewFromCurrent' });
+        });
+        actions.appendChild(btn);
+
+        card.appendChild(swatch);
+        card.appendChild(info);
+        card.appendChild(actions);
+        container.appendChild(card);
+      });
     }
 
     function renderTokenGroups() {

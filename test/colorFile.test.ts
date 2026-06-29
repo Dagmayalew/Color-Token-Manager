@@ -5,7 +5,9 @@ import * as path from 'path';
 import { afterEach, beforeEach, test } from 'node:test';
 import {
   addColorToken,
+  createColorsFile,
   findExistingTokenByValue,
+  getKnownColorsFile,
   getColorType,
   normalizeColorValue,
   readColors,
@@ -89,10 +91,85 @@ test('readColors resolves alias tokens', async () => {
   assert.equal(button?.aliasOf, 'primary');
 });
 
+test('readColors parses theme export token files', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-'));
+  tempDirs.push(dir);
+  const filePath = path.join(dir, 'theme.ts');
+  fs.writeFileSync(
+    filePath,
+    `export const theme = {
+  colors: {
+    light: {
+      background: {
+        primary: '#FFFFFF',
+      },
+      text: {
+        primary: '#111111',
+      },
+    },
+  },
+} as const;
+`,
+  );
+
+  const colors = await readColors(vscode.Uri.file(filePath) as vscode.Uri);
+
+  assert.equal(
+    colors.find((color) => color.key === 'colors.light.background.primary')?.value,
+    '#FFFFFF',
+  );
+  assert.equal(colors.find((color) => color.key === 'colors.light.text.primary')?.value, '#111111');
+});
+
+test('readColors resolves aliases against the detected export name', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-'));
+  tempDirs.push(dir);
+  const filePath = path.join(dir, 'tokens.ts');
+  fs.writeFileSync(
+    filePath,
+    `export const tokens = {
+  color: {
+    brand: '#FF6B00',
+    button: tokens.color.brand,
+  },
+} as const;
+`,
+  );
+
+  const colors = await readColors(vscode.Uri.file(filePath) as vscode.Uri);
+  const button = colors.find((color) => color.key === 'color.button');
+
+  assert.equal(button?.value, '#FF6B00');
+  assert.equal(button?.aliasOf, 'color.brand');
+});
+
+test('getKnownColorsFile prefers tokenFilePath over legacy colorsFilePath', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-'));
+  tempDirs.push(dir);
+  fs.writeFileSync(path.join(dir, 'colors.ts'), `export const colors = { primary: '#000000' };`);
+  fs.writeFileSync(
+    path.join(dir, 'theme.ts'),
+    `export const theme = { colors: { primary: '#FFFFFF' } };`,
+  );
+
+  (vscode as unknown as { __setWorkspaceRoot(value: string): void }).__setWorkspaceRoot(dir);
+  (vscode as unknown as { __setTestConfig(values: Record<string, unknown>): void }).__setTestConfig(
+    {
+      colorsFilePath: 'colors.ts',
+      tokenFilePath: 'theme.ts',
+    },
+  );
+
+  const known = await getKnownColorsFile();
+
+  assert.equal(known?.fsPath, path.join(dir, 'theme.ts'));
+});
+
 const tempDirs: string[] = [];
 
 beforeEach(() => {
   tempDirs.length = 0;
+  (vscode as unknown as { __resetTestConfig(): void }).__resetTestConfig();
 });
 
 afterEach(() => {
@@ -112,6 +189,52 @@ test('updateColor edits a token in a writable copy', async () => {
 
   const colors = await readColors(uri);
   assert.equal(colors.find((color) => color.key === 'primary')?.value, '#010203');
+});
+
+// ── Template creation tests (Phase 3/6) ──────────────────────────────────────
+
+test('createColorsFile creates colorSeries template with numeric scale', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctm-tpl-'));
+  tempDirs.push(dir);
+  const uri = vscode.Uri.file(path.join(dir, 'colors.ts')) as vscode.Uri;
+
+  await createColorsFile(uri, 'colorSeries');
+  const content = fs.readFileSync(uri.fsPath, 'utf8');
+
+  assert.ok(content.includes('primary'), 'should include primary series');
+  assert.ok(content.includes('neutral'), 'should include neutral series');
+  assert.ok(content.includes('success'), 'should include success series');
+  assert.ok(content.includes('500'), 'should include 500 scale step');
+  assert.ok(content.includes('export const colors'), 'should export colors');
+});
+
+test('createColorsFile creates lightDark template with two exports', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctm-tpl-'));
+  tempDirs.push(dir);
+  const uri = vscode.Uri.file(path.join(dir, 'theme.ts')) as vscode.Uri;
+
+  await createColorsFile(uri, 'lightDark');
+  const content = fs.readFileSync(uri.fsPath, 'utf8');
+
+  assert.ok(content.includes('export const lightTheme'), 'should export lightTheme');
+  assert.ok(content.includes('export const darkTheme'), 'should export darkTheme');
+  assert.ok(content.includes("background: '#FFFFFF'"), 'lightTheme should have white background');
+  assert.ok(content.includes("background: '#111827'"), 'darkTheme should have dark background');
+});
+
+test('createColorsFile creates reactNative template with light and dark sub-objects', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctm-tpl-'));
+  tempDirs.push(dir);
+  const uri = vscode.Uri.file(path.join(dir, 'theme.ts')) as vscode.Uri;
+
+  await createColorsFile(uri, 'reactNative');
+  const content = fs.readFileSync(uri.fsPath, 'utf8');
+
+  assert.ok(content.includes('export const theme'), 'should export theme');
+  assert.ok(content.includes('light:'), 'should have light sub-object');
+  assert.ok(content.includes('dark:'), 'should have dark sub-object');
+  assert.ok(content.includes('background:'), 'should have background tokens');
+  assert.ok(content.includes('text:'), 'should have text tokens');
 });
 
 test('addColorToken keeps trailing-comment commas on the same property line', async () => {

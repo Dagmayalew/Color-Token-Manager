@@ -187,6 +187,25 @@ export class Range {
   ) {}
 }
 
+export class TextEdit {
+  constructor(
+    public range: Range,
+    public newText: string,
+  ) {}
+
+  static replace(range: Range, newText: string): TextEdit {
+    return new TextEdit(range, newText);
+  }
+
+  static insert(position: Position, newText: string): TextEdit {
+    return new TextEdit(new Range(position, position), newText);
+  }
+
+  static delete(range: Range): TextEdit {
+    return new TextEdit(range, '');
+  }
+}
+
 export namespace window {
   export const activeTextEditor = undefined;
   export const visibleTextEditors: unknown[] = [];

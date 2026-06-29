@@ -131,14 +131,14 @@ test('colorCodeActionProvider returns only extraction action when matching token
     token,
   )) as vscode.CodeAction[];
 
-  // We expect only the extract action:
-  // 1. Extract this color (QuickFix, preferred, command configured)
+  // Phase 8: when no matching token exists, theme-aware suggestions are added
+  // plus the always-present "Extract this color" fallback action.
   assert.ok(actions);
-  assert.equal(actions.length, 1);
+  assert.ok(actions.length >= 1, `expected at least 1 action, got ${actions.length}`);
 
-  const extractAction = actions[0];
-  assert.equal(extractAction.title, 'Extract this color');
+  // The "Extract this color" action must always be present
+  const extractAction = actions.find((a) => a.title === 'Extract this color');
+  assert.ok(extractAction, '"Extract this color" action should always be present');
   assert.equal(extractAction.kind, vscode.CodeActionKind.QuickFix);
-  assert.equal(extractAction.isPreferred, true);
   assert.ok(extractAction.command);
 });

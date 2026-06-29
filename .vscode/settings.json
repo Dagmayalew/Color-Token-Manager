@@ -1,0 +1,4 @@
+{
+  "colorTokenManager.colorsFilePath": "src/colorFile.ts",
+  "colorTokenManager.tokenPathMode": "auto"
+}

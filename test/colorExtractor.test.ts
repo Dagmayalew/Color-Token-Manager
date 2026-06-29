@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 import { extractHardcodedColorsFromText } from '../src/colorExtractor';
 import { getProjectTokenName, shouldCreateAlias } from '../src/colorPlan';
-import { getReplacementText } from '../src/colorScan';
+import { buildTokenReference, getReplacementText } from '../src/colorScan';
 import type { AppColor } from '../src/types';
 import { resetColorTokenManagerConfig, setColorTokenManagerConfig } from './helpers/config';
 
@@ -140,13 +140,21 @@ test('extractHardcodedColorsFromText does not double count quoted colors when un
   assert.equal(extracted[1].replacementKind, 'cssLiteral');
 });
 
+import { cssAdapter } from '../src/languages/cssAdapter';
+
 test('getReplacementText returns css variables for css literals', () => {
   const [color] = extractHardcodedColorsFromText('.button { color: #ffffff; }', {
     includeUnquotedColors: true,
   });
 
-  assert.equal(getReplacementText(color, 'button.background'), 'var(--color-button-background)');
-  assert.equal(getReplacementText(color, 'primaryOrange'), 'var(--color-primary-orange)');
+  assert.equal(
+    getReplacementText(color, 'button.background', cssAdapter),
+    'var(--color-button-background)',
+  );
+  assert.equal(
+    getReplacementText(color, 'primaryOrange', cssAdapter),
+    'var(--color-primary-orange)',
+  );
 });
 
 test('flat color projects do not receive nested semantic token paths', () => {
@@ -161,4 +169,26 @@ test('nested color projects keep nested semantic token paths', () => {
 
   assert.equal(getProjectTokenName('text.black', existingColors), 'text.black');
   assert.equal(shouldCreateAlias('black', 'text.black', new Set(['black']), existingColors), true);
+});
+
+// ── buildTokenReference ───────────────────────────────────────────────────────
+
+test('buildTokenReference uses dot notation for named segments', () => {
+  assert.equal(buildTokenReference('colors', 'primary'), 'colors.primary');
+  assert.equal(buildTokenReference('theme', 'background'), 'theme.background');
+  assert.equal(buildTokenReference('theme', 'background.primary'), 'theme.background.primary');
+});
+
+test('buildTokenReference uses bracket notation for numeric segments', () => {
+  assert.equal(buildTokenReference('colors', 'primary.500'), 'colors.primary[500]');
+  assert.equal(buildTokenReference('colors', 'neutral.900'), 'colors.neutral[900]');
+  assert.equal(buildTokenReference('colors', 'neutral.50'), 'colors.neutral[50]');
+});
+
+test('buildTokenReference handles mixed named and numeric segments', () => {
+  assert.equal(buildTokenReference('tokens', 'color.primary.500'), 'tokens.color.primary[500]');
+});
+
+test('buildTokenReference with multi-part prefix and numeric segment', () => {
+  assert.equal(buildTokenReference('theme.colors', 'primary.500'), 'theme.colors.primary[500]');
 });

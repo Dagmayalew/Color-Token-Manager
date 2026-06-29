@@ -60,21 +60,53 @@ export function getColorsImportPath(
 }
 
 export function getColorsIdentifier(): string {
-  const configured = vscode.workspace
-    .getConfiguration('colorTokenManager')
-    .get<string>('importIdentifier', 'colors')
-    .trim();
+  const configuration = vscode.workspace.getConfiguration('colorTokenManager');
+
+  // referencePrefix takes priority — use first segment as import identifier
+  const referencePrefix = configuration.get<string>('referencePrefix', '').trim();
+  if (referencePrefix) {
+    return referencePrefix.split('.')[0];
+  }
+
+  // tokenObject is next priority
+  const tokenObject = configuration.get<string>('tokenObject', '').trim();
+  if (tokenObject) {
+    return tokenObject;
+  }
+
+  // Existing logic: importIdentifier or tokenExportName
+  const configured = configuration.get<string>('importIdentifier', 'colors').trim();
+  const hasExplicitImportIdentifier = hasExplicitConfigValue<string>(
+    configuration,
+    'importIdentifier',
+  );
+
+  if (!hasExplicitImportIdentifier) {
+    const tokenExportName = getConfiguredTokenExportName(configuration);
+    if (tokenExportName !== 'auto') {
+      return tokenExportName;
+    }
+  }
 
   return configured || 'colors';
 }
 
-export function addColorsImportEdit(
-  edit: vscode.WorkspaceEdit,
+export function getTokenReferencePrefix(): string {
+  const configuration = vscode.workspace.getConfiguration('colorTokenManager');
+  const referencePrefix = configuration.get<string>('referencePrefix', '').trim();
+  if (referencePrefix) {
+    return referencePrefix;
+  }
+
+  return getColorsIdentifier();
+}
+
+export function buildColorsImportEdit(
   document: vscode.TextDocument,
-  colorsFileUri: vscode.Uri,
-): void {
-  const importPath = getColorsImportPath(document, colorsFileUri);
-  const identifier = getColorsIdentifier();
+  importPath: string,
+  identifier: string,
+): vscode.TextEdit[] {
+  const exportedName = getTokenExportNameForImport();
   const importMode = getImportMode();
   const text = document.getText();
   const importRegex = /^import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?/gm;
@@ -90,8 +122,8 @@ export function addColorsImportEdit(
       continue;
     }
 
-    if (hasColorsImport(clause, identifier, importMode)) {
-      return;
+    if (hasColorsImport(clause, identifier, exportedName, importMode)) {
+      return [];
     }
 
     if (importMode === 'default' || importMode === 'namespace') {
@@ -106,17 +138,33 @@ export function addColorsImportEdit(
     const insertOffset = match.index + namedImportMatch.index + namedImportMatch[0].length - 1;
     const existingNames = namedImportMatch[1].trim();
     const separator = existingNames ? ', ' : '';
-    const importedName = identifier === 'colors' ? 'colors' : `colors as ${identifier}`;
-    edit.insert(document.uri, document.positionAt(insertOffset), `${separator}${importedName}`);
-    return;
+    const importedName =
+      identifier === exportedName ? exportedName : `${exportedName} as ${identifier}`;
+    return [
+      vscode.TextEdit.insert(document.positionAt(insertOffset), `${separator}${importedName}`),
+    ];
   }
 
-  const importText = getImportText(importPath, identifier, importMode);
-  edit.insert(
-    document.uri,
-    document.positionAt(lastImportEnd),
-    lastImportEnd > 0 ? `\n${importText}` : importText,
-  );
+  const importText = getImportText(importPath, identifier, exportedName, importMode);
+  return [
+    vscode.TextEdit.insert(
+      document.positionAt(lastImportEnd),
+      lastImportEnd > 0 ? `\n${importText}` : importText,
+    ),
+  ];
+}
+
+export function addColorsImportEdit(
+  edit: vscode.WorkspaceEdit,
+  document: vscode.TextDocument,
+  colorsFileUri: vscode.Uri,
+): void {
+  const importPath = getColorsImportPath(document, colorsFileUri);
+  const identifier = getColorsIdentifier();
+  const textEdits = buildColorsImportEdit(document, importPath, identifier);
+  for (const textEdit of textEdits) {
+    edit.insert(document.uri, textEdit.range.start, textEdit.newText);
+  }
 }
 
 function getImportMode(): 'named' | 'default' | 'namespace' {
@@ -133,6 +181,7 @@ function getImportMode(): 'named' | 'default' | 'namespace' {
 function getImportText(
   importPath: string,
   identifier: string,
+  exportedName: string,
   importMode: 'named' | 'default' | 'namespace',
 ): string {
   if (importMode === 'default') {
@@ -143,12 +192,13 @@ function getImportText(
     return `import * as ${identifier} from '${importPath}';\n`;
   }
 
-  return `import { ${identifier === 'colors' ? 'colors' : `colors as ${identifier}`} } from '${importPath}';\n`;
+  return `import { ${identifier === exportedName ? exportedName : `${exportedName} as ${identifier}`} } from '${importPath}';\n`;
 }
 
 function hasColorsImport(
   importClause: string,
   identifier: string,
+  exportedName: string,
   importMode: 'named' | 'default' | 'namespace',
 ): boolean {
   if (importMode === 'namespace') {
@@ -176,11 +226,120 @@ function hasColorsImport(
       return (
         imported === identifier ||
         alias === identifier ||
-        (imported === 'colors' && identifier === 'colors')
+        (imported === exportedName && identifier === exportedName)
       );
     });
 }
 
+function getTokenExportNameForImport(): string {
+  const tokenExportName = getConfiguredTokenExportName(
+    vscode.workspace.getConfiguration('colorTokenManager'),
+  );
+  return tokenExportName === 'auto' ? 'colors' : tokenExportName;
+}
+
+function getConfiguredTokenExportName(configuration: vscode.WorkspaceConfiguration): string {
+  const tokenObject = configuration.get<string>('tokenObject', '').trim();
+  if (tokenObject) {
+    return tokenObject;
+  }
+
+  const value = configuration.get<string>('tokenExportName', 'auto').trim();
+  return value || 'auto';
+}
+
+function hasExplicitConfigValue<T>(
+  configuration: vscode.WorkspaceConfiguration,
+  key: string,
+): boolean {
+  const inspect = (
+    configuration as vscode.WorkspaceConfiguration & {
+      inspect?: <Value>(section: string) => {
+        globalValue?: Value;
+        workspaceValue?: Value;
+        workspaceFolderValue?: Value;
+      };
+    }
+  ).inspect?.<T>(key);
+  return Boolean(inspect?.globalValue ?? inspect?.workspaceValue ?? inspect?.workspaceFolderValue);
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Add or update an import statement that brings multiple named identifiers
+ * into scope from the token file. Handles deduplication of already-imported
+ * names and merges with existing imports from the same source path.
+ *
+ * Falls back to `addColorsImportEdit` when only one identifier is needed.
+ */
+export function addMultipleImportEdit(
+  edit: vscode.WorkspaceEdit,
+  document: vscode.TextDocument,
+  colorsFileUri: vscode.Uri,
+  identifiers: string[],
+): void {
+  if (identifiers.length === 0) {
+    return;
+  }
+
+  if (identifiers.length === 1) {
+    addColorsImportEdit(edit, document, colorsFileUri);
+    return;
+  }
+
+  const importPath = getColorsImportPath(document, colorsFileUri);
+  const text = document.getText();
+  const importRegex = /^import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?/gm;
+  let lastImportEnd = 0;
+  let match: RegExpExecArray | null;
+
+  const needed = new Set(identifiers);
+
+  while ((match = importRegex.exec(text))) {
+    lastImportEnd = match.index + match[0].length;
+    const clause = match[1];
+    const source = match[2];
+
+    if (source !== importPath) {
+      continue;
+    }
+
+    // Remove already-imported names from the needed set
+    const namedMatch = clause.match(/\{([^}]*)\}/);
+    if (namedMatch) {
+      for (const part of namedMatch[1].split(',').map((p) => p.trim())) {
+        if (part) {
+          needed.delete(part);
+        }
+      }
+
+      if (needed.size === 0) {
+        return; // all identifiers already imported
+      }
+
+      // Append missing names inside the existing braces
+      if (namedMatch.index !== undefined) {
+        const insertAt = match.index + namedMatch.index + namedMatch[0].length - 1;
+        const toAdd = [...needed].join(', ');
+        edit.insert(document.uri, document.positionAt(insertAt), `, ${toAdd}`);
+      }
+    }
+
+    return;
+  }
+
+  // No existing import from this path — insert a fresh one
+  const importText = `import { ${identifiers.join(', ')} } from '${importPath}';
+`;
+  edit.insert(
+    document.uri,
+    document.positionAt(lastImportEnd),
+    lastImportEnd > 0
+      ? `
+${importText}`
+      : importText,
+  );
 }

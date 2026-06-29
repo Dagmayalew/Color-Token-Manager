@@ -1,15 +1,16 @@
 # Color Token Manager
 
-Color Token Manager helps React Native and TypeScript projects manage color tokens from a `colors.ts` file.
+Color Token Manager helps React Native and TypeScript projects manage color tokens from `colors.ts`, `theme.ts`, `themes.ts`, `tokens.ts`, or `designTokens.ts`.
 
 It can:
 
-- Read and edit color tokens from `colors.ts`
+- Read and edit color tokens from existing color, theme, or token files
 - Detect hardcoded colors in TypeScript, JavaScript, Vue, and CSS-family files
 - Support `#RGB`, `#RRGGBB`, `rgb()`, `rgba()`, `hsl()`, and `hsla()` literals
 - Underline hardcoded colors and offer an editor quick fix
 - Show inline color swatches next to hardcoded colors
 - Warn when text-like tokens fail WCAG contrast against background tokens
+- Audit theme readiness for light/dark token groups, duplicate values, unused tokens, and contrast risks
 - Extract hardcoded colors into reusable tokens
 - Replace hardcoded values with `colors.tokenName`
 - Preview current selection or folder-wide extraction before applying edits
@@ -33,6 +34,8 @@ It can:
 - Preview Colors From Selection
 - Rename Color Token
 - Find Unused Color Tokens
+- Audit Design Tokens
+- Audit Contrast
 - Export Design Tokens
 - Pick Colors File
 - Refresh Color Tokens
@@ -44,6 +47,7 @@ Run **Set Up Color Token Manager** or click **Set up Colors** in the status bar.
 The setup wizard can:
 
 - Find an existing `colors.ts`
+- Find an existing `theme.ts`, `themes.ts`, `tokens.ts`, or `designTokens.ts`
 - Create `src/theme/colors.ts`
 - Create a custom `colors.ts` path
 - Set `tokenPathMode` to auto, flat, or nested
@@ -56,7 +60,21 @@ Open a supported `.ts`, `.tsx`, `.js`, `.jsx`, `.vue`, `.css`, `.scss`, or `.les
 
 ## Contrast Checks
 
-In `colors.ts`, text-like tokens such as `text.muted` are checked against background-like tokens such as `background.white`. The default target is WCAG AA (`4.5:1`), and it can be changed to AAA.
+In the selected token file, text-like tokens such as `text.muted` are checked against background-like tokens such as `background.white`. The default target is WCAG AA (`4.5:1`), and it can be changed to AAA.
+
+## Theme Audits
+
+Run **Audit Design Tokens** to open a theme-aware report in VS Code. The report checks:
+
+- light/dark token groups such as `colors.light.background.primary` and `colors.dark.background.primary`
+- missing light/dark counterparts
+- duplicate color values
+- alias count
+- unused tokens
+- contrast risks for detected text/background pairs
+- suggested next actions
+
+Run **Audit Contrast** when you only want the contrast section.
 
 ## Primitive And Semantic Layers
 
@@ -139,7 +157,9 @@ export const colors = {
 
 ## Multi-root workspaces
 
-`colorTokenManager.colorsFilePath` is resolved relative to the **workspace folder of the active file**, so each root in a multi-root workspace can use its own path (for example in that root’s `.vscode/settings.json`). Folder pickers and export dialogs default to the same folder.
+`colorTokenManager.tokenFilePath` is resolved relative to the **workspace folder of the active file**, so each root in a multi-root workspace can use its own token or theme file path (for example in that root’s `.vscode/settings.json`). `colorTokenManager.colorsFilePath` is still supported as a legacy fallback. Folder pickers and export dialogs default to the same folder.
+
+Set `colorTokenManager.tokenExportName` when your token object uses a custom export name. The default is `auto`, which detects `colors`, `theme`, `themes`, `tokens`, or `designTokens`.
 
 ## Import mode
 
@@ -187,6 +207,7 @@ Resources:
 - `colors://tokens` — full token tree plus flat token metadata
 - `colors://tokens/flat` — `{ "path.to.token": "#FFFFFF" }`
 - `colors://tokens/unused` — unused token report
+- `colors://report` — theme-aware token audit report
 - `colors://exports/{format}` — `json`, `css`, `tailwind`, `w3c`, or `figma`
 
 Tools:
@@ -194,12 +215,15 @@ Tools:
 - `extract_from_file({ dryRun, path })`
 - `suggest_token_name({ dryRun, context, colorValue? })`
 - `get_contrast({ dryRun, tokenPath, againstTokenPath })`
+- `audit_project({ dryRun })`
+- `audit_contrast({ dryRun })`
 
 Every tool requires an explicit `dryRun` boolean. Agent paths are resolved against the active workspace folder and rejected if they escape it.
 
 Example prompts for an MCP-capable coding agent:
 
 - "List unused color tokens and suggest which ones can be removed."
+- "Audit my theme tokens and list the highest priority fixes."
 - "Suggest a name for the `backgroundColor` in `src/components/Button.tsx`."
 - "Pick one text-like token and one background-like token, then check their contrast."
 
@@ -241,3 +265,139 @@ The extension is intentionally lightweight: the minified bundle (`dist/extension
 - [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md) — maintainer guide (build, publish, source map)
 
 CI runs on pull requests via GitHub Actions (typecheck, lint, format check, tests, integration test compile, compile).
+
+## Theme Token Support
+
+Color Token Manager supports flat color files, structured theme objects, and React Native light/dark theme files.
+
+### Simple colors file
+
+```ts
+export const colors = {
+  primary: '#2563EB',
+};
+```
+
+Settings (these are the defaults — no configuration needed):
+
+```json
+{
+  "colorTokenManager.tokenFile": "src/theme/colors.ts",
+  "colorTokenManager.tokenObject": "colors",
+  "colorTokenManager.referencePrefix": "colors"
+}
+```
+
+Generated reference: `colors.primary`
+
+---
+
+### Theme file
+
+```ts
+export const theme = {
+  colors: {
+    primary: '#2563EB',
+    background: '#FFFFFF',
+  },
+};
+```
+
+Settings:
+
+```json
+{
+  "colorTokenManager.tokenFile": "src/theme/theme.ts",
+  "colorTokenManager.tokenObject": "theme",
+  "colorTokenManager.referencePrefix": "theme.colors"
+}
+```
+
+Generated reference: `theme.colors.primary`
+
+Import inserted: `import { theme } from '../theme/theme';`
+
+---
+
+### Custom tokens file
+
+```ts
+export const tokens = {
+  color: {
+    primary: '#2563EB',
+  },
+};
+```
+
+Settings:
+
+```json
+{
+  "colorTokenManager.tokenFile": "src/tokens.ts",
+  "colorTokenManager.tokenObject": "tokens",
+  "colorTokenManager.referencePrefix": "tokens.color"
+}
+```
+
+Generated reference: `tokens.color.primary`
+
+Import inserted: `import { tokens } from '../tokens';`
+
+---
+
+### React Native light/dark theme
+
+```ts
+export const theme = {
+  light: {
+    background: '#FFFFFF',
+    text: '#111827',
+  },
+  dark: {
+    background: '#111827',
+    text: '#FFFFFF',
+  },
+};
+```
+
+Settings:
+
+```json
+{
+  "colorTokenManager.tokenFile": "src/theme/theme.ts",
+  "colorTokenManager.tokenObject": "theme",
+  "colorTokenManager.referencePrefix": "theme"
+}
+```
+
+> Full automatic light/dark pairing is planned for a future release. Tokens from nested objects are readable in the current release.
+
+---
+
+### Backward Compatibility
+
+Existing `colors.ts` users do not need to change any settings. The extension defaults to the same behavior as before. New settings `tokenFile`, `tokenObject`, and `referencePrefix` are optional and override the existing `tokenFilePath`, `tokenExportName`, and `importIdentifier` settings respectively when set.
+
+## Automatic Detection
+
+Run **Color Token Manager: Detect Theme/Color Setup** from the Command Palette to automatically scan your workspace for token and theme files. The extension ranks candidates by confidence (based on path conventions like `src/theme/colors.ts`) and lets you select the file to use.
+
+After detection, all settings are saved to your workspace configuration automatically.
+
+## Color Series Naming
+
+When extracting hardcoded colors, the extension suggests organized token names using built-in Tailwind-compatible palettes:
+
+| Color     | Suggested Name |
+| --------- | -------------- |
+| `#3B82F6` | `primary.500`  |
+| `#111827` | `neutral.900`  |
+| `#22C55E` | `success.500`  |
+| `#F59E0B` | `warning.500`  |
+| `#EF4444` | `danger.500`   |
+
+Property name context is also used: `backgroundColor` suggests `background`, `borderColor` suggests `border`, `color` suggests `text`.
+
+## Reset Setup
+
+Run **Color Token Manager: Reset Token Setup** to clear all token file settings from workspace configuration and start fresh.

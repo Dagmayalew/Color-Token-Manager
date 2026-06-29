@@ -9,7 +9,10 @@ import {
 import { getKnownColorsFile, normalizeColorValue, readColors } from './colorFile';
 import { getReplacementText } from './colorScan';
 import { addColorsImportEdit, getColorsIdentifier } from './importUtils';
+import { getContextText } from './colorPlan';
+import { suggestTokenName } from './tokenNaming';
 import { type AppColor } from './types';
+import { getAdapterForDocument } from './languages/registry';
 
 const DIAGNOSTIC_SOURCE = 'Color Token Manager';
 const DIAGNOSTIC_CODE = 'hardcoded-color';
@@ -95,22 +98,25 @@ export function registerColorDiagnostics(context: vscode.ExtensionContext): void
 }
 
 function getHardcodedColorDiagnostics(document: vscode.TextDocument): vscode.Diagnostic[] {
-  return extractHardcodedColorsFromText(document.getText(), getExtractionOptions(document)).map(
-    (color) => {
-      const range = new vscode.Range(
-        document.positionAt(color.start),
-        document.positionAt(color.end),
-      );
-      const diagnostic = new vscode.Diagnostic(
-        range,
-        `Hardcoded color ${color.value} can be extracted to colors.ts.`,
-        vscode.DiagnosticSeverity.Hint,
-      );
-      diagnostic.source = DIAGNOSTIC_SOURCE;
-      diagnostic.code = DIAGNOSTIC_CODE;
-      return diagnostic;
-    },
-  );
+  const adapter = getAdapterForDocument(document);
+  return extractHardcodedColorsFromText(
+    document.getText(),
+    getExtractionOptions(document),
+    adapter,
+  ).map((color) => {
+    const range = new vscode.Range(
+      document.positionAt(color.start),
+      document.positionAt(color.end),
+    );
+    const diagnostic = new vscode.Diagnostic(
+      range,
+      `Hardcoded color ${color.value} can be extracted to a color token.`,
+      vscode.DiagnosticSeverity.Hint,
+    );
+    diagnostic.source = DIAGNOSTIC_SOURCE;
+    diagnostic.code = DIAGNOSTIC_CODE;
+    return diagnostic;
+  });
 }
 
 async function getContrastDiagnostics(document: vscode.TextDocument): Promise<vscode.Diagnostic[]> {
@@ -136,6 +142,7 @@ async function getContrastDiagnostics(document: vscode.TextDocument): Promise<vs
   const minRatio = getContrastMinimumRatio();
   const usedRanges: Array<{ start: number; end: number }> = [];
   const diagnostics: vscode.Diagnostic[] = [];
+  const identifier = getColorsIdentifier();
 
   for (const textToken of textTokens) {
     for (const background of backgrounds) {
@@ -147,7 +154,7 @@ async function getContrastDiagnostics(document: vscode.TextDocument): Promise<vs
       const range = findTokenRange(document, textToken, usedRanges);
       const diagnostic = new vscode.Diagnostic(
         range,
-        `Contrast ${ratio.toFixed(2)}:1: colors.${textToken.key} on colors.${background.key} fails WCAG ${getContrastLevel()} (${minRatio}:1).`,
+        `Contrast ${ratio.toFixed(2)}:1: ${identifier}.${textToken.key} on ${identifier}.${background.key} fails WCAG ${getContrastLevel()} (${minRatio}:1).`,
         vscode.DiagnosticSeverity.Warning,
       );
       diagnostic.source = DIAGNOSTIC_SOURCE;
@@ -175,9 +182,11 @@ function refreshSwatches(
   }
 
   const grouped = new Map<string, vscode.DecorationOptions[]>();
+  const adapter = getAdapterForDocument(editor.document);
   for (const color of extractHardcodedColorsFromText(
     editor.document.getText(),
     getExtractionOptions(editor.document),
+    adapter,
   )) {
     if (!parseColor(color.value)) {
       continue;
@@ -303,7 +312,12 @@ export const colorCodeActionProvider: vscode.CodeActionProvider = {
 
     // Find the corresponding ExtractedColor from the document
     const text = document.getText();
-    const extractedColors = extractHardcodedColorsFromText(text, getExtractionOptions(document));
+    const adapter = getAdapterForDocument(document);
+    const extractedColors = extractHardcodedColorsFromText(
+      text,
+      getExtractionOptions(document),
+      adapter,
+    );
     const color = extractedColors.find((c) => {
       const startPos = document.positionAt(c.start);
       const endPos = document.positionAt(c.end);
@@ -355,6 +369,27 @@ export const colorCodeActionProvider: vscode.CodeActionProvider = {
         }
 
         actions.push(replaceAction);
+      }
+    }
+
+    // When no exact token match, offer theme-aware suggestions from the naming system
+    if (matchingTokens.length === 0) {
+      const usageContext = getContextText(text, color.start);
+      const suggestions = suggestTokenName(color.value, usageContext);
+      for (const suggestion of suggestions.slice(0, 2)) {
+        const identifier = getColorsIdentifier();
+        const reference = `${identifier}.${suggestion.name}`;
+        const suggestAction = new vscode.CodeAction(
+          `Extract as ${reference} (${suggestion.confidence} confidence)`,
+          vscode.CodeActionKind.QuickFix,
+        );
+        suggestAction.diagnostics = [matchingDiagnostic];
+        suggestAction.command = {
+          command: 'colorTokenManager.previewColorAtRange',
+          title: `Extract as ${reference}`,
+          arguments: [createTarget(document, matchingDiagnostic.range)],
+        };
+        actions.push(suggestAction);
       }
     }
 

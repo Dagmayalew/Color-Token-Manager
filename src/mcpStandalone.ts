@@ -3,6 +3,19 @@ import * as path from 'path';
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 type Token = { key: string; value: string; aliasOf?: string };
+type ThemeGroup = { name: string; tokens: Token[]; suffixToToken: Map<string, Token> };
+type StandaloneThemeAuditReport = {
+  colorsFile: string;
+  totalTokens: number;
+  uniqueValues: number;
+  duplicateValues: JsonValue[];
+  aliases: JsonValue[];
+  unused: JsonValue[];
+  themes: JsonValue[];
+  missingThemeCounterparts: JsonValue[];
+  contrastRisks: JsonValue[];
+  suggestedNextActions: string[];
+};
 type JsonRpcRequest = {
   id?: string | number | null;
   method?: string;
@@ -12,6 +25,7 @@ type JsonRpcRequest = {
 const VERSION = '0.2.0';
 const EXPORT_FORMATS = new Set(['json', 'css', 'tailwind', 'figma', 'w3c']);
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue', '.css', '.scss', '.less']);
+const TOKEN_EXPORT_NAMES = ['colors', 'theme', 'themes', 'tokens', 'designTokens'];
 const COLOR_PATTERN = String.raw`#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})|rgb\(\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*\)|rgba\(\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:0(?:\.\d+)?|1(?:\.0+)?)\s*\)|hsl\(\s*(?:360|3[0-5]\d|[12]?\d?\d)\s*,\s*(?:100|\d?\d)%\s*,\s*(?:100|\d?\d)%\s*\)|hsla\(\s*(?:360|3[0-5]\d|[12]?\d?\d)\s*,\s*(?:100|\d?\d)%\s*,\s*(?:100|\d?\d)%\s*,\s*(?:0(?:\.\d+)?|1(?:\.0+)?)\s*\)`;
 
 const options = parseArgs(process.argv.slice(2));
@@ -151,6 +165,10 @@ async function readResource(uri: string): Promise<JsonValue> {
     };
   }
 
+  if (uri === 'colors://report') {
+    return buildThemeAuditReport(tokens) as unknown as JsonValue;
+  }
+
   const exportMatch = uri.match(/^colors:\/\/exports\/([a-z]+)$/);
   if (exportMatch && EXPORT_FORMATS.has(exportMatch[1])) {
     return {
@@ -248,6 +266,21 @@ function callTool(name: string, args: Record<string, unknown>): JsonValue {
     };
   }
 
+  if (name === 'audit_project') {
+    return buildThemeAuditReport(readTokens()) as unknown as JsonValue;
+  }
+
+  if (name === 'audit_contrast') {
+    const report = buildThemeAuditReport(readTokens());
+    return {
+      colorsFile: report.colorsFile,
+      contrastRisks: report.contrastRisks,
+      suggestedNextActions: (report.suggestedNextActions as string[]).filter((action) =>
+        /contrast/i.test(action),
+      ),
+    };
+  }
+
   throw new Error(`Unknown MCP tool: ${name}`);
 }
 
@@ -257,6 +290,7 @@ function listResources(): JsonValue[] {
     { uri: 'colors://tokens', name: 'Color tokens', mimeType: 'application/json' },
     { uri: 'colors://tokens/flat', name: 'Flat color token map', mimeType: 'application/json' },
     { uri: 'colors://tokens/unused', name: 'Unused color tokens', mimeType: 'application/json' },
+    { uri: 'colors://report', name: 'Theme token audit report', mimeType: 'application/json' },
     ...Array.from(EXPORT_FORMATS).map((format) => ({
       uri: `colors://exports/${format}`,
       name: `Color token ${format} export`,
@@ -302,6 +336,24 @@ function listTools(): JsonValue[] {
         required: ['dryRun', 'tokenPath', 'againstTokenPath'],
       },
     },
+    {
+      name: 'audit_project',
+      description: 'Return a theme-aware token audit.',
+      inputSchema: {
+        type: 'object',
+        properties: { dryRun: { type: 'boolean' } },
+        required: ['dryRun'],
+      },
+    },
+    {
+      name: 'audit_contrast',
+      description: 'Return contrast risks from the theme-aware token audit.',
+      inputSchema: {
+        type: 'object',
+        properties: { dryRun: { type: 'boolean' } },
+        required: ['dryRun'],
+      },
+    },
   ];
 }
 
@@ -313,6 +365,7 @@ function helpResource(): JsonValue {
     safeWorkflow: [
       'Read colors://tokens or colors://tokens/flat before suggesting token edits.',
       'Use colors://tokens/unused before proposing token cleanup.',
+      'Use colors://report or audit_project with dryRun: true before planning theme work.',
       'Use extract_from_file with dryRun: true to preview extraction.',
       'Use get_contrast before changing foreground/background pairs.',
     ],
@@ -320,10 +373,187 @@ function helpResource(): JsonValue {
     tools: listTools(),
     examplePrompts: [
       'List unused color tokens.',
+      'Audit the project theme tokens with audit_project and list the highest-priority fixes.',
       'Preview extracting colors from src/components/Button.tsx with dryRun true.',
       'Pick one text-like token and one background-like token from colors://tokens/flat, then check their contrast.',
     ],
   };
+}
+
+function buildThemeAuditReport(tokens: Token[]): StandaloneThemeAuditReport {
+  const used = findUsedTokens(tokens);
+  const themeGroups = groupThemeTokens(tokens);
+  const missingThemeCounterparts = findMissingThemeCounterparts(themeGroups);
+  const contrastRisks = findContrastRisks(
+    themeGroups.size ? [...themeGroups.values()] : [{ name: '', tokens, suffixToToken: new Map() }],
+  );
+  const duplicateValues = findDuplicateValues(tokens);
+  const unused = tokens
+    .filter((token) => !used.has(token.key))
+    .map((token) => ({ tokenPath: token.key, value: token.value, aliasOf: token.aliasOf ?? null }));
+  const suggestedNextActions = getAuditNextActions({
+    hasThemes: themeGroups.size > 0,
+    missingCount: missingThemeCounterparts.length,
+    contrastCount: contrastRisks.length,
+    duplicateCount: duplicateValues.length,
+    unusedCount: unused.length,
+    tokenCount: tokens.length,
+  });
+
+  return {
+    colorsFile: relativePath(colorsFilePath()),
+    totalTokens: tokens.length,
+    uniqueValues: new Set(tokens.map((token) => normalizeColorValue(token.value))).size,
+    duplicateValues,
+    aliases: tokens
+      .filter((token) => token.aliasOf)
+      .map((token) => ({ tokenPath: token.key, aliasOf: token.aliasOf ?? '', value: token.value })),
+    unused,
+    themes: [...themeGroups.entries()].map(([name, group]) => ({
+      name,
+      tokenCount: group.tokens.length,
+      missingCounterparts: missingThemeCounterparts
+        .filter((missing) => missing.theme === name)
+        .map((missing) => missing.expectedTokenPath),
+    })),
+    missingThemeCounterparts,
+    contrastRisks,
+    suggestedNextActions,
+  };
+}
+
+function groupThemeTokens(tokens: Token[]): Map<string, ThemeGroup> {
+  const groups = new Map<string, ThemeGroup>();
+  for (const token of tokens) {
+    const parts = token.key.split('.');
+    const themeIndex = parts.findIndex((part) => /^(light|dark)$/i.test(part));
+    if (themeIndex === -1) {
+      continue;
+    }
+
+    const name = parts[themeIndex].toLowerCase();
+    const suffix = parts.filter((_, index) => index !== themeIndex).join('.');
+    const group = groups.get(name) ?? { name, tokens: [], suffixToToken: new Map<string, Token>() };
+    group.tokens.push(token);
+    group.suffixToToken.set(suffix, token);
+    groups.set(name, group);
+  }
+  return groups;
+}
+
+function findMissingThemeCounterparts(
+  groups: Map<string, ThemeGroup>,
+): Array<{ tokenPath: string; theme: string; expectedTokenPath: string }> {
+  const light = groups.get('light');
+  const dark = groups.get('dark');
+  if (!light || !dark) {
+    return [];
+  }
+
+  return [...findMissingForTheme(light, dark), ...findMissingForTheme(dark, light)];
+}
+
+function findMissingForTheme(
+  source: ThemeGroup,
+  target: ThemeGroup,
+): Array<{ tokenPath: string; theme: string; expectedTokenPath: string }> {
+  const missing: Array<{ tokenPath: string; theme: string; expectedTokenPath: string }> = [];
+  for (const [suffix, token] of source.suffixToToken) {
+    if (target.suffixToToken.has(suffix)) {
+      continue;
+    }
+    missing.push({
+      tokenPath: token.key,
+      theme: target.name,
+      expectedTokenPath: token.key
+        .split('.')
+        .map((part) => (part.toLowerCase() === source.name ? target.name : part))
+        .join('.'),
+    });
+  }
+  return missing;
+}
+
+function findContrastRisks(groups: ThemeGroup[]): JsonValue[] {
+  const risks: JsonValue[] = [];
+  for (const group of groups) {
+    const textTokens = group.tokens.filter(isTextLikeToken);
+    const backgroundTokens = group.tokens.filter(isBackgroundLikeToken);
+    for (const textToken of textTokens) {
+      for (const backgroundToken of backgroundTokens) {
+        const ratio = getContrastRatio(textToken.value, backgroundToken.value);
+        if (ratio === undefined || ratio >= 4.5) {
+          continue;
+        }
+        risks.push({
+          theme: group.name || null,
+          tokenPath: textToken.key,
+          tokenValue: textToken.value,
+          againstTokenPath: backgroundToken.key,
+          againstTokenValue: backgroundToken.value,
+          ratio: Number(ratio.toFixed(2)),
+          level: 'AA',
+        });
+      }
+    }
+  }
+  return risks;
+}
+
+function findDuplicateValues(tokens: Token[]): JsonValue[] {
+  const byValue = new Map<string, { value: string; tokens: string[] }>();
+  for (const token of tokens) {
+    const normalized = normalizeColorValue(token.value);
+    const entry = byValue.get(normalized) ?? { value: token.value, tokens: [] };
+    entry.tokens.push(token.key);
+    byValue.set(normalized, entry);
+  }
+  return [...byValue.values()].filter((entry) => entry.tokens.length > 1);
+}
+
+function getAuditNextActions(input: {
+  hasThemes: boolean;
+  missingCount: number;
+  contrastCount: number;
+  duplicateCount: number;
+  unusedCount: number;
+  tokenCount: number;
+}): string[] {
+  const actions: string[] = [];
+  if (!input.hasThemes && input.tokenCount) {
+    actions.push('Introduce light/dark semantic groups for theme-ready color roles.');
+  }
+  if (input.missingCount) {
+    actions.push('Add missing light/dark counterparts before relying on theme switching.');
+  }
+  if (input.contrastCount) {
+    actions.push('Fix contrast risks before shipping the affected theme.');
+  }
+  if (input.duplicateCount) {
+    actions.push(
+      'Convert duplicate values into semantic aliases where the duplicate names are intentional.',
+    );
+  }
+  if (input.unusedCount) {
+    actions.push(
+      'Review unused tokens and remove only the ones that are not part of the public theme API.',
+    );
+  }
+  return actions.length ? actions : ['No immediate token maintenance actions found.'];
+}
+
+function isTextLikeToken(token: Token): boolean {
+  return (
+    /(^|\.)text(\.|$)|(^|\.)foreground(\.|$)|(^|\.)content(\.|$)|(^|\.)label(\.|$)|(^|\.)title(\.|$)|(^|\.)body(\.|$)|(^|\.)muted$/i.test(
+      token.key,
+    ) && !/(^|\.)background(\.|$)|(^|\.)border(\.|$)|(^|\.)shadow(\.|$)/i.test(token.key)
+  );
+}
+
+function isBackgroundLikeToken(token: Token): boolean {
+  return /(^|\.)background(\.|$)|(^|\.)surface(\.|$)|(^|\.)canvas(\.|$)|(^|\.)screen(\.|$)|(^|\.)card(\.|$)|(^|\.)white$|^white$/i.test(
+    token.key,
+  );
 }
 
 function readTokens(): Token[] {
@@ -345,16 +575,28 @@ function readTokens(): Token[] {
 }
 
 function findColorsObjectStart(text: string): number {
-  const declaration = /\b(?:export\s+)?(?:const|let|var)\s+colors\b/g.exec(text);
-  if (!declaration) {
-    throw new Error('Could not find a colors object in colors.ts.');
+  const exportName = options.tokenExportName;
+  const names = exportName === 'auto' ? TOKEN_EXPORT_NAMES : [exportName];
+
+  for (const name of names) {
+    const declaration = new RegExp(
+      `\\b(?:export\\s+)?(?:const|let|var)\\s+${escapeRegExp(name)}\\b`,
+      'g',
+    ).exec(text);
+    if (!declaration) {
+      continue;
+    }
+
+    const start = text.indexOf('{', declaration.index);
+    if (start === -1) {
+      throw new Error(`Could not find the ${name} object literal.`);
+    }
+    return start;
   }
 
-  const start = text.indexOf('{', declaration.index);
-  if (start === -1) {
-    throw new Error('Could not find the colors object literal.');
-  }
-  return start;
+  throw new Error(
+    'Could not find a token object named colors, theme, themes, tokens, or designTokens.',
+  );
 }
 
 function parseObjectTokens(text: string, start: number, prefix = ''): Token[] {
@@ -593,10 +835,15 @@ function resolveWorkspacePath(value: string): string {
   return candidate;
 }
 
-function parseArgs(args: string[]): { workspace: string; colorsFile: string } {
+function parseArgs(args: string[]): {
+  workspace: string;
+  colorsFile: string;
+  tokenExportName: string;
+} {
   const workspace = getArg(args, '--workspace') ?? process.cwd();
-  const colorsFile = getArg(args, '--colors-file') ?? 'colors.ts';
-  return { workspace: path.resolve(workspace), colorsFile };
+  const colorsFile = getArg(args, '--token-file') ?? getArg(args, '--colors-file') ?? 'colors.ts';
+  const tokenExportName = getArg(args, '--token-export-name') ?? 'auto';
+  return { workspace: path.resolve(workspace), colorsFile, tokenExportName };
 }
 
 function getArg(args: string[], name: string): string | undefined {

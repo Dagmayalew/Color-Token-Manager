@@ -3,8 +3,16 @@ import * as vscode from 'vscode';
 import { type AppColor } from './types';
 import { getContextUri, resolveConfiguredFileUri } from './workspaceUtils';
 
-const COLOR_FILE_GLOB = '**/colors.ts';
+const TOKEN_FILE_GLOB =
+  '**/{colors,theme,themes,tokens,designTokens,design-tokens,designSystem,design-system}.ts';
 const EXCLUDED_GLOB = '{**/node_modules/**,**/dist/**,**/build/**,**/ios/**,**/android/**}';
+const SUPPORTED_TOKEN_EXPORT_NAMES = [
+  'colors',
+  'theme',
+  'themes',
+  'tokens',
+  'designTokens',
+] as const;
 
 type ParsedObject = {
   start: number;
@@ -22,14 +30,23 @@ type ParsedProperty = {
   child?: ParsedObject;
 };
 
-export type ColorsFileTemplateMode = 'flat' | 'nested';
+export type ColorsFileTemplateMode =
+  | 'flat'
+  | 'nested'
+  | 'colorSeries'
+  | 'lightDark'
+  | 'reactNative';
+type TokenSourceObject = {
+  exportName: string;
+  object: ParsedObject;
+};
 
 export async function findColorFiles(): Promise<vscode.Uri[]> {
   if (!vscode.workspace.workspaceFolders?.length) {
     throw new Error('Open a workspace before using Color Token Manager.');
   }
 
-  return vscode.workspace.findFiles(COLOR_FILE_GLOB, EXCLUDED_GLOB);
+  return vscode.workspace.findFiles(TOKEN_FILE_GLOB, EXCLUDED_GLOB);
 }
 
 export async function getConfiguredColorsFile(contextUri?: vscode.Uri): Promise<vscode.Uri | null> {
@@ -38,10 +55,7 @@ export async function getConfiguredColorsFile(contextUri?: vscode.Uri): Promise<
   }
 
   const context = getContextUri(contextUri);
-  const configuredPath = vscode.workspace
-    .getConfiguration('colorTokenManager', context)
-    .get<string>('colorsFilePath', '')
-    .trim();
+  const configuredPath = getConfiguredTokenFilePath(context);
 
   if (configuredPath) {
     const fileUri = resolveConfiguredFileUri(configuredPath, context);
@@ -50,7 +64,7 @@ export async function getConfiguredColorsFile(contextUri?: vscode.Uri): Promise<
       await vscode.workspace.fs.stat(fileUri);
       return fileUri;
     } catch {
-      throw new Error(`Configured colors.ts file was not found: ${configuredPath}`);
+      throw new Error(`Configured token file was not found: ${configuredPath}`);
     }
   }
 
@@ -63,10 +77,7 @@ export async function getKnownColorsFile(contextUri?: vscode.Uri): Promise<vscod
   }
 
   const context = getContextUri(contextUri);
-  const configuredPath = vscode.workspace
-    .getConfiguration('colorTokenManager', context)
-    .get<string>('colorsFilePath', '')
-    .trim();
+  const configuredPath = getConfiguredTokenFilePath(context);
 
   if (configuredPath) {
     const fileUri = resolveConfiguredFileUri(configuredPath, context);
@@ -103,7 +114,9 @@ export async function pickColorsFile(contextUri?: vscode.Uri): Promise<vscode.Ur
   const files = await findColorFiles();
 
   if (!files.length) {
-    vscode.window.showErrorMessage('No colors.ts file found in the current workspace.');
+    vscode.window.showErrorMessage(
+      'No colors.ts, theme.ts, or tokens.ts file found in the current workspace.',
+    );
     return null;
   }
 
@@ -129,7 +142,7 @@ export async function pickColorsFile(contextUri?: vscode.Uri): Promise<vscode.Ur
   }));
 
   const selected = await vscode.window.showQuickPick(items, {
-    placeHolder: 'Select the colors.ts file to manage',
+    placeHolder: 'Select the token or theme file to manage',
   });
 
   return selected?.uri ?? null;
@@ -154,7 +167,7 @@ export async function createColorsFile(
 
 export async function readColors(fileUri: vscode.Uri): Promise<AppColor[]> {
   const text = await readFileText(fileUri);
-  const colorsObject = getColorsObject(text);
+  const { exportName, object: colorsObject } = getTokenSourceObject(text, fileUri);
   const firstTokenByValue = new Map<string, string>();
   const literalColors = new Map<string, AppColor>();
   const aliasTargets = new Map<string, string>();
@@ -188,7 +201,7 @@ export async function readColors(fileUri: vscode.Uri): Promise<AppColor[]> {
       continue;
     }
 
-    const aliasOf = getColorAliasTarget(property.valueText);
+    const aliasOf = getColorAliasTarget(property.valueText, exportName);
     if (aliasOf) {
       aliasTargets.set(key, aliasOf);
     }
@@ -220,6 +233,11 @@ export async function readColors(fileUri: vscode.Uri): Promise<AppColor[]> {
   return Array.from(literalColors.values());
 }
 
+export async function detectTokenExportName(fileUri: vscode.Uri): Promise<string> {
+  const text = await readFileText(fileUri);
+  return getTokenSourceObject(text, fileUri).exportName;
+}
+
 export async function addColorToken(
   fileUri: vscode.Uri,
   key: string,
@@ -230,7 +248,7 @@ export async function addColorToken(
   }
 
   const text = await readFileText(fileUri);
-  const colorsObject = getColorsObject(text);
+  const { object: colorsObject } = getTokenSourceObject(text, fileUri);
   if (findColorProperty(colorsObject, key)) {
     throw new Error(`Color token "${key}" already exists.`);
   }
@@ -247,7 +265,7 @@ export async function addColorAlias(
   targetKey: string,
 ): Promise<void> {
   const text = await readFileText(fileUri);
-  const colorsObject = getColorsObject(text);
+  const { exportName, object: colorsObject } = getTokenSourceObject(text, fileUri);
 
   if (findColorProperty(colorsObject, key)) {
     throw new Error(`Color token "${key}" already exists.`);
@@ -259,7 +277,7 @@ export async function addColorAlias(
 
   await writeFileText(
     fileUri,
-    addNestedPropertyAssignment(text, colorsObject, key, `colors.${targetKey}`),
+    addNestedPropertyAssignment(text, colorsObject, key, `${exportName}.${targetKey}`),
   );
 }
 
@@ -269,7 +287,7 @@ export async function updateColor(fileUri: vscode.Uri, key: string, value: strin
   }
 
   const text = await readFileText(fileUri);
-  const colorsObject = getColorsObject(text);
+  const { object: colorsObject } = getTokenSourceObject(text, fileUri);
   const property = findColorProperty(colorsObject, key);
   if (!property) {
     throw new Error(`Color token "${key}" was not found.`);
@@ -301,7 +319,7 @@ export async function renameColorToken(
   }
 
   const text = await readFileText(fileUri);
-  const colorsObject = getColorsObject(text);
+  const { object: colorsObject } = getTokenSourceObject(text, fileUri);
   const oldProperty = findColorProperty(colorsObject, oldKey);
   if (!oldProperty) {
     throw new Error(`Color token "${oldKey}" was not found.`);
@@ -313,7 +331,7 @@ export async function renameColorToken(
 
   const initializer = oldProperty.valueText.trim();
   const withoutOldProperty = removeProperty(text, oldProperty);
-  const reparsed = getColorsObject(withoutOldProperty);
+  const { object: reparsed } = getTokenSourceObject(withoutOldProperty, fileUri);
   await writeFileText(
     fileUri,
     addNestedPropertyAssignment(withoutOldProperty, reparsed, newKey, initializer),
@@ -418,21 +436,78 @@ async function writeFileText(fileUri: vscode.Uri, text: string): Promise<void> {
   await vscode.workspace.fs.writeFile(fileUri, Buffer.from(text, 'utf8'));
 }
 
-function getColorsObject(text: string): ParsedObject {
-  const declaration = /\b(?:const|let|var)\s+colors\b/g.exec(text);
+function getConfiguredTokenFilePath(context?: vscode.Uri): string {
+  const configuration = vscode.workspace.getConfiguration('colorTokenManager', context);
+  const tokenFile = configuration.get<string>('tokenFile', '').trim();
+  if (tokenFile) {
+    return tokenFile;
+  }
+
+  const tokenFilePath = configuration.get<string>('tokenFilePath', '').trim();
+  if (tokenFilePath) {
+    return tokenFilePath;
+  }
+
+  return configuration.get<string>('colorsFilePath', '').trim();
+}
+
+function getConfiguredTokenExportName(context?: vscode.Uri): string {
+  const configuration = vscode.workspace.getConfiguration('colorTokenManager', context);
+  const tokenObject = configuration.get<string>('tokenObject', '').trim();
+  if (tokenObject) {
+    return tokenObject;
+  }
+
+  const configured = configuration.get<string>('tokenExportName', 'auto').trim();
+  return configured || 'auto';
+}
+
+function getTokenSourceObject(text: string, context?: vscode.Uri): TokenSourceObject {
+  const configuredExportName = getConfiguredTokenExportName(context);
+  const configured =
+    configuredExportName === 'auto'
+      ? undefined
+      : getObjectForDeclaration(text, configuredExportName);
+  if (configured) {
+    return configured;
+  }
+
+  if (configuredExportName !== 'auto') {
+    throw new Error(
+      `Could not find a variable declaration named "${configuredExportName}" in this token file.`,
+    );
+  }
+
+  for (const exportName of SUPPORTED_TOKEN_EXPORT_NAMES) {
+    const source = getObjectForDeclaration(text, exportName);
+    if (source) {
+      return source;
+    }
+  }
+
+  throw new Error(
+    'Could not find a supported token object. Expected a variable named colors, theme, themes, tokens, or designTokens.',
+  );
+}
+
+function getObjectForDeclaration(text: string, exportName: string): TokenSourceObject | undefined {
+  const declaration = new RegExp(
+    `\\b(?:export\\s+)?(?:const|let|var)\\s+${escapeRegExp(exportName)}\\b`,
+    'g',
+  ).exec(text);
   if (!declaration) {
-    throw new Error('Could not find a variable declaration named "colors" in this file.');
+    return undefined;
   }
 
   const equals = findAssignmentEquals(text, declaration.index + declaration[0].length);
   const objectStart = equals === -1 ? -1 : findNextObjectLiteralStart(text, equals + 1);
   if (objectStart === -1) {
     throw new Error(
-      'The "colors" declaration must be initialized with an object literal, for example: export const colors = { primary: "#FF6B00" };',
+      `The "${exportName}" declaration must be initialized with an object literal, for example: export const ${exportName} = { colors: { primary: "#FF6B00" } };`,
     );
   }
 
-  return parseObject(text, objectStart);
+  return { exportName, object: parseObject(text, objectStart) };
 }
 
 function findAssignmentEquals(text: string, start: number): number {
@@ -872,11 +947,17 @@ function getStringLiteralText(valueText: string): string | undefined {
   return unescapeStringContent(trimmed.slice(1, -1));
 }
 
-function getColorAliasTarget(valueText: string): string | undefined {
+function getColorAliasTarget(valueText: string, exportName: string): string | undefined {
   const match = valueText
     .trim()
-    .match(/^colors\.([A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*)$/);
-  return match?.[1];
+    .match(
+      /^([A-Za-z_$][A-Za-z0-9_$]*)\.([A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*)$/,
+    );
+  if (!match) {
+    return undefined;
+  }
+
+  return match[1] === exportName ? match[2] : undefined;
 }
 
 function getDesignTokenReferenceTarget(value: string): string | undefined {
@@ -907,6 +988,10 @@ function formatPropertyName(name: string): string {
   return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) ? name : `'${escapeForQuotedString(name, "'")}'`;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function getLineIndent(text: string, offset: number): string {
   const lineStart = text.lastIndexOf('\n', offset) + 1;
   return text.slice(lineStart, offset).match(/^\s*/)?.[0] ?? '';
@@ -931,6 +1016,96 @@ function normalizeHex(value: string): string {
 }
 
 function getColorsFileTemplate(mode: ColorsFileTemplateMode): string {
+  if (mode === 'colorSeries') {
+    return `export const colors = {
+  primary: {
+    50: '#EFF6FF',
+    100: '#DBEAFE',
+    500: '#3B82F6',
+    700: '#1D4ED8',
+  },
+  neutral: {
+    50: '#F9FAFB',
+    100: '#F3F4F6',
+    500: '#6B7280',
+    900: '#111827',
+  },
+  success: {
+    500: '#22C55E',
+  },
+  warning: {
+    500: '#F59E0B',
+  },
+  danger: {
+    500: '#EF4444',
+  },
+} as const;
+`;
+  }
+
+  if (mode === 'lightDark') {
+    return `export const lightTheme = {
+  background: '#FFFFFF',
+  surface: '#F9FAFB',
+  text: '#111827',
+  border: '#E5E7EB',
+  primary: '#3B82F6',
+} as const;
+
+export const darkTheme = {
+  background: '#111827',
+  surface: '#1F2937',
+  text: '#F9FAFB',
+  border: '#374151',
+  primary: '#60A5FA',
+} as const;
+`;
+  }
+
+  if (mode === 'reactNative') {
+    return `export const theme = {
+  light: {
+    background: {
+      primary: '#FFFFFF',
+      secondary: '#F9FAFB',
+    },
+    text: {
+      primary: '#111827',
+      secondary: '#6B7280',
+    },
+    border: {
+      primary: '#E5E7EB',
+    },
+    colors: {
+      primary: '#3B82F6',
+      success: '#22C55E',
+      warning: '#F59E0B',
+      danger: '#EF4444',
+    },
+  },
+  dark: {
+    background: {
+      primary: '#111827',
+      secondary: '#1F2937',
+    },
+    text: {
+      primary: '#F9FAFB',
+      secondary: '#D1D5DB',
+    },
+    border: {
+      primary: '#374151',
+    },
+    colors: {
+      primary: '#60A5FA',
+      success: '#22C55E',
+      warning: '#FBBF24',
+      danger: '#F87171',
+    },
+  },
+} as const;
+`;
+  }
+
   if (mode === 'nested') {
     return `export const colors = {
   brand: {

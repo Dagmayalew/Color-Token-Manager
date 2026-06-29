@@ -106,9 +106,16 @@ export function buildPreviewForDocument(
   document: vscode.TextDocument,
   extractedColors: ExtractedColor[],
   planner: PreviewPlanner,
+  adapterId = 'generic',
+  isPreviewOnly = false,
 ): FileExtractionPreview {
-  return buildPreviewForUri(document.uri, extractedColors, planner, (offset) =>
-    document.positionAt(offset),
+  return buildPreviewForUri(
+    document.uri,
+    extractedColors,
+    planner,
+    (offset) => document.positionAt(offset),
+    adapterId,
+    isPreviewOnly,
   );
 }
 
@@ -117,6 +124,8 @@ export function buildPreviewForUri(
   extractedColors: ExtractedColor[],
   planner: PreviewPlanner,
   positionAt: (offset: number) => { line: number; character: number },
+  adapterId = 'generic',
+  isPreviewOnly = false,
 ): FileExtractionPreview {
   const autoReplaceExistingColors = vscode.workspace
     .getConfiguration('colorTokenManager')
@@ -195,6 +204,8 @@ export function buildPreviewForUri(
   return {
     filePath: vscode.workspace.asRelativePath(uri),
     fileUri: uri.toString(),
+    adapterId,
+    isPreviewOnly,
     replacements,
   };
 }

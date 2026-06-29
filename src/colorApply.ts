@@ -8,7 +8,8 @@ import {
   readColors,
 } from './colorFile';
 import { globToRegExp } from './globUtils';
-import { addColorsImportEdit } from './importUtils';
+import { getColorsImportPath, getTokenReferencePrefix } from './importUtils';
+import { getAdapterForDocument } from './languages/registry';
 import {
   addGeneratedColorToken,
   buildPreviewForDocument,
@@ -33,7 +34,30 @@ import {
 
 const SCRIPT_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue']);
 const STYLE_EXTENSIONS = new Set(['.css', '.scss', '.less']);
-const SUPPORTED_EXTENSIONS = new Set([...SCRIPT_EXTENSIONS, ...STYLE_EXTENSIONS]);
+const HTML_EXTENSIONS = new Set(['.html', '.htm']);
+const PREVIEW_ONLY_EXTENSIONS = new Set([
+  '.dart',
+  '.swift',
+  '.kt',
+  '.kts',
+  '.java',
+  '.go',
+  '.py',
+  '.php',
+  '.rb',
+  '.json',
+  '.yaml',
+  '.yml',
+  '.xml',
+  '.svg',
+  '.md',
+]);
+const SUPPORTED_EXTENSIONS = new Set([
+  ...SCRIPT_EXTENSIONS,
+  ...STYLE_EXTENSIONS,
+  ...HTML_EXTENSIONS,
+  ...PREVIEW_ONLY_EXTENSIONS,
+]);
 const BLOCKED_PATH_PARTS = ['/node_modules/', '/build/', '/dist/'];
 export type ExtractionResult = {
   extracted: number;
@@ -58,6 +82,7 @@ export async function replaceColorsInDocument(
   let added = 0;
   let reused = 0;
   let skipped = 0;
+  const adapter = getAdapterForDocument(document);
   const createAliases = vscode.workspace
     .getConfiguration('colorTokenManager')
     .get<boolean>('createSemanticAliases', true);
@@ -127,13 +152,23 @@ export async function replaceColorsInDocument(
     edit.replace(
       document.uri,
       new vscode.Range(document.positionAt(color.start), document.positionAt(color.end)),
-      getReplacementText(color, tokenName),
+      getReplacementText(color, tokenName, adapter),
     );
   }
 
-  if (!isStyleLikeDocument(document)) {
-    addColorsImportEdit(edit, document, colorsFileUri);
+  if (adapter.buildImportEdit) {
+    const importPath = getColorsImportPath(document, colorsFileUri);
+    const referencePrefix = getTokenReferencePrefix();
+    const importEdits = adapter.buildImportEdit({
+      document,
+      tokenFilePath: importPath,
+      referencePrefix,
+    });
+    for (const importEdit of importEdits) {
+      edit.insert(document.uri, importEdit.range.start, importEdit.newText);
+    }
   }
+
   const applied = await vscode.workspace.applyEdit(edit);
   if (!applied) {
     throw new Error('Failed to replace colors in the current file.');
@@ -405,9 +440,11 @@ async function applyPreviewForFile(
   colorsFileUri: vscode.Uri,
 ): Promise<PreviewFileApplyResult> {
   const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(filePreview.fileUri));
+  const adapter = getAdapterForDocument(document);
   const extractedColors = extractHardcodedColorsFromText(
     document.getText(),
     getExtractionOptions(document),
+    adapter,
   );
   const plannedReplacements = filePreview.replacements.filter(
     (replacement) => replacement.enabled !== false,
@@ -480,13 +517,23 @@ async function applyPreviewForFile(
     edit.replace(
       document.uri,
       new vscode.Range(document.positionAt(color.start), document.positionAt(color.end)),
-      getReplacementText(color, tokenName),
+      getReplacementText(color, tokenName, adapter),
     );
   }
 
-  if (!isStyleLikeDocument(document)) {
-    addColorsImportEdit(edit, document, colorsFileUri);
+  if (adapter.buildImportEdit) {
+    const importPath = getColorsImportPath(document, colorsFileUri);
+    const referencePrefix = getTokenReferencePrefix();
+    const importEdits = adapter.buildImportEdit({
+      document,
+      tokenFilePath: importPath,
+      referencePrefix,
+    });
+    for (const importEdit of importEdits) {
+      edit.insert(document.uri, importEdit.range.start, importEdit.newText);
+    }
   }
+
   const applied = await vscode.workspace.applyEdit(edit);
   if (!applied) {
     throw new Error(`Failed to apply preview changes to ${filePreview.filePath}.`);
@@ -539,9 +586,11 @@ export async function previewColorsFromCurrentFile(
     return undefined;
   }
 
+  const adapter = getAdapterForDocument(document);
   const extractedColors = extractHardcodedColorsFromText(
     document.getText(),
     getExtractionOptions(document),
+    adapter,
   );
   const existingColors = await readColors(colorsFileUri);
   const filePreview = buildPreviewForDocument(
@@ -603,9 +652,11 @@ export async function previewColorsFromSelection(
   const selectionText = document.getText(
     new vscode.Range(document.positionAt(selectionStart), document.positionAt(selectionEnd)),
   );
+  const adapter = getAdapterForDocument(document);
   const extractedColors = extractHardcodedColorsFromText(
     selectionText,
     getExtractionOptions(document),
+    adapter,
   ).map((color) => ({
     ...color,
     start: color.start + selectionStart,
@@ -654,9 +705,11 @@ export async function buildFolderExtractionPreview(
 
   for (const fileUri of fileUris) {
     const document = await vscode.workspace.openTextDocument(fileUri);
+    const adapter = getAdapterForDocument(document);
     const extractedColors = extractHardcodedColorsFromText(
       document.getText(),
       getExtractionOptions(document),
+      adapter,
     );
     const filePreview = buildPreviewForDocument(document, extractedColors, planner);
     const replacements = filePreview.replacements;
@@ -696,9 +749,11 @@ export async function extractColorsFromDocument(
     return { extracted: 0, added: 0, reused: 0, skipped: 0 };
   }
 
+  const adapter = getAdapterForDocument(document);
   const extractedColors = extractHardcodedColorsFromText(
     document.getText(),
     getExtractionOptions(document),
+    adapter,
   );
   if (!extractedColors.length) {
     return { extracted: 0, added: 0, reused: 0, skipped: 0 };
@@ -738,7 +793,7 @@ async function findSupportedFilesInFolder(
   const prefix = relativeFolder && relativeFolder !== '.' ? `${relativeFolder}/` : '';
   const pattern = new vscode.RelativePattern(
     workspaceFolder,
-    `${prefix}**/*.{ts,tsx,js,jsx,vue,css,scss,less}`,
+    `${prefix}**/*.{ts,tsx,js,jsx,vue,css,scss,less,html,htm,dart,swift,kt,kts,java,go,py,php,rb,json,yaml,yml,xml,svg,md}`,
   );
   const files = await vscode.workspace.findFiles(
     pattern,

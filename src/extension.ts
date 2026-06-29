@@ -6,6 +6,7 @@ import {
   applyFolderExtractionPreview,
   extractColorsFromCurrentFile,
   extractColorsFromFolder,
+  extractHardcodedColorsFromText,
   isSupportedExtractionDocument,
   previewColorsFromCurrentFile,
   previewColorsFromFolder,
@@ -20,7 +21,8 @@ import {
   updateColor,
   validateColorValue,
 } from './colorFile';
-import { warnDeprecatedImportStyleIfNeeded } from './importUtils';
+import { getTokenReferencePrefix, warnDeprecatedImportStyleIfNeeded } from './importUtils';
+import { buildThemeAwarePlans } from './tokenNaming';
 import { registerColorDiagnostics } from './diagnostics';
 import {
   ColorTokenMcpServer,
@@ -33,8 +35,15 @@ import {
 import { getPreviewWebviewHtml } from './previewWebview';
 import { getResultsWebviewHtml } from './resultsWebview';
 import { runSetupWizard } from './setup';
+import { findTokenFiles } from './tokenDetection';
+import { buildThemeAuditMarkdown, buildThemeAuditReport } from './themeAudit';
 import { exportDesignTokens, renameTokenAcrossProject, showUnusedTokens } from './tokenTools';
-import { type AppColor, type FolderApplyResult, type FolderExtractionPreview } from './types';
+import {
+  type AppColor,
+  type FolderApplyResult,
+  type FolderExtractionPreview,
+  type ThemeAwareColorPlan,
+} from './types';
 import { getWebviewHtml } from './webview';
 
 let panel: vscode.WebviewPanel | undefined;
@@ -189,6 +198,28 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   );
 
+  const auditDesignTokensDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.auditDesignTokens',
+    async () => {
+      try {
+        await showThemeAudit('all');
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
+  const auditContrastDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.auditContrast',
+    async () => {
+      try {
+        await showThemeAudit('contrast');
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
   const exportTokensDisposable = vscode.commands.registerCommand(
     'colorTokenManager.exportTokens',
     async () => {
@@ -299,6 +330,108 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   );
 
+  const detectSetupDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.detectSetup',
+    async () => {
+      try {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+          vscode.window.showErrorMessage('Open a workspace first.');
+          return;
+        }
+
+        const candidates = await findTokenFiles(workspaceFolder);
+        if (!candidates.length) {
+          vscode.window.showInformationMessage(
+            'No token/theme files detected. Use "Set Up Color Token Manager" to create one.',
+          );
+          return;
+        }
+
+        const items = candidates.map((c) => ({
+          label: `$(file-code) ${c.filePath}`,
+          description: `${c.kind} · confidence ${c.confidence}`,
+          detail: c.reason,
+          candidate: c,
+        }));
+
+        const selected = await vscode.window.showQuickPick(items, {
+          title: 'Detected Token/Theme Files',
+          placeHolder: 'Select a file to use as your token file',
+        });
+        if (!selected) {
+          return;
+        }
+
+        const config = vscode.workspace.getConfiguration('colorTokenManager', workspaceFolder.uri);
+        await config.update(
+          'tokenFile',
+          selected.candidate.filePath,
+          vscode.ConfigurationTarget.Workspace,
+        );
+        await config.update(
+          'tokenExportName',
+          selected.candidate.exportNames[0] ?? 'auto',
+          vscode.ConfigurationTarget.Workspace,
+        );
+        await config.update(
+          'tokenFileKind',
+          selected.candidate.kind,
+          vscode.ConfigurationTarget.Workspace,
+        );
+        vscode.window.showInformationMessage(`Token file set to ${selected.candidate.filePath}.`);
+        await updateStatusBar();
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
+  const resetSetupDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.resetSetup',
+    async () => {
+      try {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+          vscode.window.showErrorMessage('Open a workspace first.');
+          return;
+        }
+
+        const action = await vscode.window.showWarningMessage(
+          'Reset Color Token Manager setup? This clears all token file settings from workspace configuration.',
+          { modal: true },
+          'Reset',
+        );
+        if (action !== 'Reset') {
+          return;
+        }
+
+        const config = vscode.workspace.getConfiguration('colorTokenManager', workspaceFolder.uri);
+        const keysToReset = [
+          'tokenFile',
+          'tokenFilePath',
+          'colorsFilePath',
+          'tokenExportName',
+          'tokenObject',
+          'referencePrefix',
+          'tokenFileKind',
+          'tokenPathMode',
+        ];
+        for (const key of keysToReset) {
+          await config.update(key, undefined, vscode.ConfigurationTarget.Workspace);
+        }
+
+        selectedFile = undefined;
+        watcher?.dispose();
+        watcher = undefined;
+        await updateStatusBar();
+        vscode.window.showInformationMessage('Color Token Manager setup has been reset.');
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
   context.subscriptions.push(
     activeEditorDisposable,
     selectionDisposable,
@@ -311,6 +444,8 @@ export function activate(context: vscode.ExtensionContext): void {
     previewColorAtRangeDisposable,
     renameTokenDisposable,
     unusedTokensDisposable,
+    auditDesignTokensDisposable,
+    auditContrastDisposable,
     exportTokensDisposable,
     setupDisposable,
     pickDisposable,
@@ -321,6 +456,8 @@ export function activate(context: vscode.ExtensionContext): void {
     installCursorMcpConfigDisposable,
     testMcpServerDisposable,
     showMcpOutputDisposable,
+    detectSetupDisposable,
+    resetSetupDisposable,
   );
 
   setupStatusBar(context);
@@ -373,7 +510,35 @@ async function openColorManager(
     );
   }
 
-  panel.webview.html = getWebviewHtml(panel.webview, context.extensionUri, fileUri, colors);
+  // Build theme-aware plans from the active editor's hardcoded colors
+  let colorPlans: ThemeAwareColorPlan[] = [];
+  try {
+    const activeDoc = vscode.window.activeTextEditor?.document;
+    if (activeDoc && isSupportedExtractionDocument(activeDoc)) {
+      const { getAdapterForDocument } = await import('./languages/registry');
+      const adapter = getAdapterForDocument(activeDoc);
+      const text = activeDoc.getText();
+      const extracted = extractHardcodedColorsFromText(text, {}, adapter);
+      const prefix = getTokenReferencePrefix();
+      colorPlans = buildThemeAwarePlans(
+        extracted,
+        text,
+        activeDoc.uri.fsPath,
+        fileUri.fsPath,
+        prefix,
+      );
+    }
+  } catch {
+    // Non-fatal: proceed without detected colors
+  }
+
+  panel.webview.html = getWebviewHtml(
+    panel.webview,
+    context.extensionUri,
+    fileUri,
+    colors,
+    colorPlans,
+  );
   setupWatcher(fileUri);
 }
 
@@ -424,6 +589,12 @@ async function handleWebviewMessage(message: {
       case 'findUnusedTokens':
         await showUnusedTokens();
         break;
+      case 'auditDesignTokens':
+        await showThemeAudit('all');
+        break;
+      case 'auditContrast':
+        await showThemeAudit('contrast');
+        break;
       case 'exportTokens':
         await exportDesignTokens();
         break;
@@ -450,6 +621,9 @@ async function handleWebviewMessage(message: {
       case 'showMcpOutput':
         showMcpOutput();
         break;
+      case 'detectSetup':
+        await vscode.commands.executeCommand('colorTokenManager.detectSetup');
+        return;
       default:
         break;
     }
@@ -754,6 +928,7 @@ async function copyMcpClientConfig(): Promise<void> {
       configContext.serverPath,
       configContext.colorsFilePath,
       nodeCommand,
+      configContext.tokenExportName,
     ),
   );
   vscode.window.showInformationMessage('Copied Color Token Manager MCP setup snippets.');
@@ -861,6 +1036,7 @@ async function installCodexMcpConfig(): Promise<void> {
     configContext.serverPath,
     configContext.colorsFilePath,
     nodeCommand,
+    configContext.tokenExportName,
   );
 
   await vscode.workspace.fs.createDirectory(codexDir);
@@ -875,6 +1051,7 @@ async function installMcpConfigFile(
     workspacePath: string;
     serverPath: string | undefined;
     colorsFilePath: string;
+    tokenExportName: string;
   },
   options?: {
     isGlobal?: boolean;
@@ -904,6 +1081,7 @@ async function installMcpConfigFile(
         configContext.serverPath,
         configContext.colorsFilePath,
         nodeCommand,
+        configContext.tokenExportName,
       ).mcpServers,
     },
   };
@@ -928,6 +1106,7 @@ async function getMcpConfigContext(): Promise<{
   workspacePath: string;
   serverPath: string | undefined;
   colorsFilePath: string;
+  tokenExportName: string;
 }> {
   const contextUri = vscode.window.activeTextEditor?.document.uri;
   const colorsFileUri = await getKnownColorsFile(contextUri);
@@ -943,16 +1122,38 @@ async function getMcpConfigContext(): Promise<{
   const colorsFilePath = colorsFileUri
     ? path.relative(workspaceFolder.uri.fsPath, colorsFileUri.fsPath).replace(/\\/g, '/')
     : 'colors.ts';
+  const tokenExportName = vscode.workspace
+    .getConfiguration('colorTokenManager', workspaceFolder.uri)
+    .get<string>('tokenExportName', 'auto')
+    .trim();
   const serverPath = extensionRootPath
     ? path.join(extensionRootPath, 'dist', 'mcp-server.js')
     : undefined;
 
-  return { workspaceFolder, workspacePath, serverPath, colorsFilePath };
+  return {
+    workspaceFolder,
+    workspacePath,
+    serverPath,
+    colorsFilePath,
+    tokenExportName: tokenExportName || 'auto',
+  };
 }
 
 function showMcpOutput(): void {
   startMcpServer();
   mcpOutput?.show();
+}
+
+async function showThemeAudit(focus: 'all' | 'contrast'): Promise<void> {
+  const colorsFileUri = await getConfiguredColorsFile(vscode.window.activeTextEditor?.document.uri);
+  if (!colorsFileUri) {
+    return;
+  }
+
+  const report = await buildThemeAuditReport(colorsFileUri);
+  const content = buildThemeAuditMarkdown(report, focus);
+  const document = await vscode.workspace.openTextDocument({ content, language: 'markdown' });
+  await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
 }
 
 async function testMcpServer(): Promise<void> {

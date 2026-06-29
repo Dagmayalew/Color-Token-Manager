@@ -47,6 +47,18 @@ test('MCP export resources reuse token serializers', async () => {
   assert.match(resource.content, /--text-black: #000000;/);
 });
 
+test('MCP report resource returns theme audit fields', async () => {
+  const { server } = setupWorkspace();
+
+  const resource = (await server.readResource('colors://report')) as {
+    totalTokens: number;
+    suggestedNextActions: string[];
+  };
+
+  assert.equal(resource.totalTokens, 3);
+  assert.ok(resource.suggestedNextActions.some((action) => /theme/i.test(action)));
+});
+
 test('MCP help resource gives agents the safe workflow', async () => {
   const { server } = setupWorkspace();
 
@@ -93,17 +105,36 @@ test('MCP client setup snippet can override the node command', () => {
   assert.equal(config.mcpServers['color-token-manager'].command, '/opt/homebrew/bin/node');
 });
 
+test('MCP client setup snippet includes custom token export name when configured', () => {
+  const snippet = getMcpClientSetupSnippet(
+    '/workspace/app',
+    '/extension/dist/mcp-server.js',
+    'src/theme/theme.ts',
+    'node',
+    'appTheme',
+  );
+  const config = JSON.parse(snippet) as {
+    mcpServers: { 'color-token-manager': { args: string[] } };
+  };
+
+  assert.deepEqual(config.mcpServers['color-token-manager'].args.slice(-2), [
+    '--token-export-name',
+    'appTheme',
+  ]);
+});
+
 test('AI agent choices include workspace and global installers', () => {
   const choices = getAiAgentChoices();
 
   assert.deepEqual(
     choices.map((choice) => choice.id),
-    ['cursor', 'claude-code', 'windsurf', 'codex', 'custom'],
+    ['cursor', 'claude-code', 'windsurf', 'codex', 'gemini', 'custom'],
   );
   assert.ok(choices.some((choice) => choice.description.includes('.cursor/mcp.json')));
   assert.ok(choices.some((choice) => choice.description.includes('.mcp.json')));
   assert.ok(choices.some((choice) => choice.description.includes('mcp_config.json')));
   assert.ok(choices.some((choice) => choice.description.includes('.codex/config.toml')));
+  assert.ok(choices.some((choice) => choice.description.includes('.gemini/settings.json')));
 });
 
 test('Codex MCP config block uses node with workspace args', () => {
@@ -279,6 +310,21 @@ test('MCP get_contrast returns WCAG pass and fail details', async () => {
   assert.equal(payload.ratio, 21);
   assert.equal(payload.wcag.AA.normalText, true);
   assert.equal(payload.wcag.AAA.normalText, true);
+});
+
+test('MCP audit_project returns the shared token audit', async () => {
+  const { server } = setupWorkspace();
+
+  const result = await server.callTool('audit_project', { dryRun: true });
+  const payload = JSON.parse(result.content[0].text) as {
+    totalTokens: number;
+    duplicateValues: unknown[];
+    contrastRisks: unknown[];
+  };
+
+  assert.equal(payload.totalTokens, 3);
+  assert.ok(Array.isArray(payload.duplicateValues));
+  assert.ok(Array.isArray(payload.contrastRisks));
 });
 
 function setupWorkspace(options: { source?: string } = {}): {

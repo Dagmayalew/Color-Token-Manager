@@ -52,7 +52,7 @@ export async function renameTokenAcrossProject(): Promise<void> {
 
   const colors = await readColors(colorsFileUri);
   if (!colors.length) {
-    vscode.window.showInformationMessage('No color tokens were found in colors.ts.');
+    vscode.window.showInformationMessage('No color tokens were found in the token file.');
     return;
   }
 
@@ -68,7 +68,7 @@ export async function renameTokenAcrossProject(): Promise<void> {
   }
 
   const newKey = await vscode.window.showInputBox({
-    prompt: `Rename colors.${oldItem.label} to`,
+    prompt: `Rename ${getColorsIdentifier()}.${oldItem.label} to`,
     value: oldItem.label,
     validateInput: validateTokenPath,
   });
@@ -107,7 +107,7 @@ export async function renameTokenAcrossProject(): Promise<void> {
 
   await saveDocuments(changedDocuments);
   vscode.window.showInformationMessage(
-    `Renamed colors.${oldItem.label} to colors.${newKey} in ${changedDocuments.length} files.`,
+    `Renamed ${getColorsIdentifier()}.${oldItem.label} to ${getColorsIdentifier()}.${newKey} in ${changedDocuments.length} files.`,
   );
 }
 
@@ -153,7 +153,7 @@ export async function exportDesignTokens(): Promise<void> {
 
   const colors = await readColors(colorsFileUri);
   if (!colors.length) {
-    vscode.window.showInformationMessage('No color tokens were found in colors.ts.');
+    vscode.window.showInformationMessage('No color tokens were found in the token file.');
     return;
   }
 
@@ -296,7 +296,7 @@ function buildUnusedTokenReport(
   }
 
   for (const color of unused) {
-    lines.push(`- \`colors.${color.key}\` = \`${color.value}\``);
+    lines.push(`- \`${getColorsIdentifier()}.${color.key}\` = \`${color.value}\``);
   }
 
   return lines.join('\n');

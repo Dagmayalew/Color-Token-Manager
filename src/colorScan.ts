@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
 import { getColorType, validateColorValue } from './colorFile';
-import { getColorsIdentifier } from './importUtils';
+import { getTokenReferencePrefix } from './importUtils';
 import { type ExtractedColor } from './types';
+import { type LanguageAdapter } from './languages/types';
 import { generateTokenName, getContextText } from './colorPlan';
 
-const COLOR_VALUE_PATTERN = String.raw`#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})|rgb\(\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*\)|rgba\(\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:0(?:\.\d+)?|1(?:\.0+)?)\s*\)|hsl\(\s*(?:360|3[0-5]\d|[12]?\d?\d)\s*,\s*(?:100|\d?\d)%\s*,\s*(?:100|\d?\d)%\s*\)|hsla\(\s*(?:360|3[0-5]\d|[12]?\d?\d)\s*,\s*(?:100|\d?\d)%\s*,\s*(?:100|\d?\d)%\s*,\s*(?:0(?:\.\d+)?|1(?:\.0+)?)\s*\)`;
+export const COLOR_VALUE_PATTERN = String.raw`#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})|rgb\(\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*\)|rgba\(\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1?\d?\d)\s*,\s*(?:0(?:\.\d+)?|1(?:\.0+)?)\s*\)|hsl\(\s*(?:360|3[0-5]\d|[12]?\d?\d)\s*,\s*(?:100|\d?\d)%\s*,\s*(?:100|\d?\d)%\s*\)|hsla\(\s*(?:360|3[0-5]\d|[12]?\d?\d)\s*,\s*(?:100|\d?\d)%\s*,\s*(?:100|\d?\d)%\s*,\s*(?:0(?:\.\d+)?|1(?:\.0+)?)\s*\)`;
 
 export type ColorExtractionOptions = {
   includeUnquotedColors?: boolean;
@@ -13,7 +14,13 @@ export type ColorExtractionOptions = {
 export function extractHardcodedColorsFromText(
   text: string,
   options: ColorExtractionOptions = {},
+  adapter?: LanguageAdapter,
 ): ExtractedColor[] {
+  // Use adapter-specific extraction if available (e.g., HTML inline styles only)
+  if (adapter?.extractInlineStyleColors) {
+    return adapter.extractInlineStyleColors(text);
+  }
+
   const ignoredRanges = [...findCommentRanges(text), ...findImportRanges(text)];
   const extractEmbeddedColors = vscode.workspace
     .getConfiguration('colorTokenManager')
@@ -239,12 +246,35 @@ function isRangeCovered(
   return ranges.some((range) => start >= range.start && end <= range.end);
 }
 
-export function getReplacementText(color: ExtractedColor, tokenName: string): string {
-  const reference = `${getColorsIdentifier()}.${tokenName}`;
-
-  if (color.replacementKind === 'cssLiteral') {
-    return `var(--color-${toCssVariableSuffix(tokenName)})`;
+/**
+ * Build a valid TypeScript/JavaScript property access expression from a
+ * dot-separated reference prefix and a token name.
+ *
+ * Numeric path segments (e.g. '500') are rendered with bracket notation
+ * (`colors.primary[500]`) since dot notation is a syntax error for numeric
+ * property names.
+ */
+export function buildTokenReference(prefix: string, tokenName: string): string {
+  const segments = tokenName.split('.');
+  let result = prefix;
+  for (const segment of segments) {
+    result += /^\d+$/.test(segment) ? `[${segment}]` : `.${segment}`;
   }
+  return result;
+}
+
+export function getReplacementText(
+  color: ExtractedColor,
+  tokenName: string,
+  adapter?: LanguageAdapter,
+): string {
+  const reference = adapter
+    ? adapter.buildTokenReference({
+        tokenPath: getTokenReferencePrefix(),
+        tokenName,
+        tokenParts: tokenName.split('.'),
+      })
+    : buildTokenReference(getTokenReferencePrefix(), tokenName);
 
   if (color.replacementKind === 'embeddedString') {
     return `\`${escapeTemplateText(color.embeddedPrefix ?? '')}\${${reference}}${escapeTemplateText(color.embeddedSuffix ?? '')}\``;
@@ -253,18 +283,29 @@ export function getReplacementText(color: ExtractedColor, tokenName: string): st
   return reference;
 }
 
+/**
+ * Extract hardcoded colors with optional adapter-specific extraction.
+ * When an adapter provides extractInlineStyleColors, it takes precedence
+ * over the default extraction logic (used for HTML inline styles, etc.).
+ */
+export function extractColorsWithAdapter(
+  text: string,
+  adapter: LanguageAdapter | undefined,
+  options: ColorExtractionOptions = {},
+): ExtractedColor[] {
+  // Use adapter-specific extraction if available (e.g., HTML inline styles only)
+  if (adapter?.extractInlineStyleColors) {
+    return adapter.extractInlineStyleColors(text);
+  }
+
+  // Fall back to default extraction
+  return extractHardcodedColorsFromText(text, options);
+}
+
 function escapeTemplateText(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
 }
 
 function isHexSubstring(text: string, start: number, end: number): boolean {
   return text[start - 1] === '#' || /[0-9a-fA-F]/.test(text[end] ?? '');
-}
-
-function toCssVariableSuffix(tokenName: string): string {
-  return tokenName
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .replace(/[^A-Za-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase();
 }
