@@ -7,6 +7,7 @@ import {
   detectExportNames,
   detectTokenFileKind,
   findTokenFiles,
+  findThemeProviderFiles,
   rankTokenFileCandidate,
 } from '../src/tokenDetection';
 import type { WorkspaceFolder } from 'vscode';
@@ -188,4 +189,42 @@ test('findTokenFiles returns candidates sorted by confidence descending', async 
       'candidates should be sorted by confidence descending',
     );
   }
+});
+
+test('findTokenFiles detects themeColors.tsx as a token file', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctm-detect-'));
+  tempDirs.push(dir);
+
+  fs.writeFileSync(
+    path.join(dir, 'themeColors.tsx'),
+    `export const themeColors = { primary: '#123456' };`,
+  );
+
+  (vscode as unknown as { __setWorkspaceRoot(v: string): void }).__setWorkspaceRoot(dir);
+  const folder = vscode.workspace.workspaceFolders![0];
+  const candidates = await findTokenFiles(folder as unknown as WorkspaceFolder);
+
+  assert.ok(candidates.some((c) => c.filePath.endsWith('themeColors.tsx')));
+});
+
+test('findThemeProviderFiles detects provider entry points', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctm-provider-'));
+  tempDirs.push(dir);
+
+  fs.writeFileSync(
+    path.join(dir, 'ThemeProvider.tsx'),
+    `
+      import { ThemeProvider } from 'styled-components';
+      export function AppThemeProvider({ children }) {
+        return <ThemeProvider theme={{ colors: {} }}>{children}</ThemeProvider>;
+      }
+    `,
+  );
+
+  (vscode as unknown as { __setWorkspaceRoot(v: string): void }).__setWorkspaceRoot(dir);
+  const folder = vscode.workspace.workspaceFolders![0];
+  const candidates = await findThemeProviderFiles(folder as unknown as WorkspaceFolder);
+
+  assert.equal(candidates.length, 1);
+  assert.ok(candidates[0].filePath.endsWith('ThemeProvider.tsx'));
 });

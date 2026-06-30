@@ -22,6 +22,7 @@ This file is for people working on the extension repo. It does not duplicate the
 | File                    | Role                                                      |
 | ----------------------- | --------------------------------------------------------- |
 | `src/extension.ts`      | Activation, commands, webview message routing             |
+| `src/setup.ts`         | Workflow setup, file detection, and onboarding choices    |
 | `src/workspaceUtils.ts` | Multi-root workspace folder / configured path resolution  |
 | `src/globUtils.ts`      | Glob → RegExp for exclude paths                           |
 | `src/colorScan.ts`      | Find hardcoded color literals in source text              |
@@ -29,7 +30,7 @@ This file is for people working on the extension repo. It does not duplicate the
 | `src/colorApply.ts`     | Apply extractions, folder/selection workflows             |
 | `src/colorExtractor.ts` | Public re-exports (stable import path)                    |
 | `src/languages/`        | Language adapters, registry, replacement capability rules |
-| `src/colorFile.ts`      | Read/write `colors.ts` (object-literal scanner)           |
+| `src/colorFile.ts`      | Read/write colors/theme token files (object-literal scanner) |
 | `src/diagnostics.ts`    | Underlines, swatches, quick fixes                         |
 | `src/tokenTools.ts`     | Rename, unused tokens, design-token export                |
 | `src/importUtils.ts`    | Import insertion and identifier modes                     |
@@ -129,6 +130,18 @@ Follow [VERSIONING.md](VERSIONING.md), then:
 All defaults live in `package.json` under `contributes.configuration`. For a copy-pastable JSON block, see README sections and the Settings UI (**Color Token Manager**).
 
 Important compatibility setting: `colorTokenManager.tokenPathMode` defaults to `auto`, so flat `colors.ts` files keep flat references like `colors.black` / `colors.textBlack` instead of receiving nested references like `colors.text.black`.
+
+Workflow settings:
+
+- `colorTokenManager.projectWorkflow` remembers whether the workspace is `colorsOnly`, `themeOnly`, or `both`
+- `colorTokenManager.colorsFile` and `colorTokenManager.themeFile` are preferred paths for split-file setups
+- legacy `colorsFilePath`, `tokenFilePath`, and `tokenFile` settings remain supported as fallbacks
+
+Setup guidance:
+
+- `colors only` is best for straightforward token extraction
+- `theme only` is best for semantic background/text/surface systems
+- `colors + theme` is best when the project keeps raw colors and semantic theme tokens in separate files
 
 Deprecations: [DEPRECATIONS.md](DEPRECATIONS.md) (`importStyle` → `importMode`, removal in v1.0.0).
 

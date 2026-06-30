@@ -29,6 +29,43 @@ That means:
 - MCP should expose the extension's value, not define it
 - AI clients are a distribution and automation layer on top of a solid VS Code feature set
 
+## Step 0 — Product Model
+
+Before changing behavior, define the supported project shapes clearly.
+
+### Supported setups
+
+- `colors.ts` only
+- `theme.ts` only
+- `colors.ts + theme.ts`
+- `tokens.ts` or `designTokens.ts`
+- custom token file paths
+
+### Supported workflows
+
+- collect hardcoded colors into reusable tokens
+- build or maintain semantic themes
+- work with separate colors and theme files
+- scan and replace in supported source files
+
+### Supported source languages
+
+- JavaScript and JSX
+- TypeScript and TSX
+- CSS, SCSS, and LESS
+- HTML inline styles
+- preview-only scan support for the other languages already listed in the extension
+
+### Product rule
+
+The extension must let the user choose:
+
+- what kind of token file they want to manage
+- whether they are managing colors, themes, or both
+- which files to scan in the workspace
+
+This step is about making the product model explicit before we refine setup and UI flows.
+
 ## Core Priorities
 
 We will focus on four areas:

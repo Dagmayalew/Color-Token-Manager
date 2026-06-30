@@ -7,11 +7,31 @@ export function getWebviewHtml(
   fileUri: vscode.Uri,
   colors: AppColor[],
   colorPlans: ThemeAwareColorPlan[] = [],
+  state: {
+    workflow: 'colorsOnly' | 'themeOnly' | 'both';
+    colorsFilePath: string;
+    themeFilePath: string;
+    themeProviderFilePath?: string;
+    summaryNotes?: string[];
+    nextWriteTarget?: string;
+    nextWriteTargetKind?: 'colors' | 'theme';
+  } = {
+    workflow: 'colorsOnly',
+    colorsFilePath: fileUri.fsPath,
+    themeFilePath: '',
+  },
 ): string {
   const nonce = getNonce();
   const cspSource = webview.cspSource;
   const payload = JSON.stringify({
     filePath: fileUri.fsPath,
+    workflow: state.workflow,
+    colorsFilePath: state.colorsFilePath,
+    themeFilePath: state.themeFilePath,
+    themeProviderFilePath: state.themeProviderFilePath ?? '',
+    summaryNotes: state.summaryNotes ?? [],
+    nextWriteTarget: state.nextWriteTarget ?? '',
+    nextWriteTargetKind: state.nextWriteTargetKind ?? 'colors',
     colors,
     colorPlans,
   })
@@ -83,6 +103,58 @@ export function getWebviewHtml(
       padding: 4px 8px;
       border-radius: 4px;
       display: inline-block;
+    }
+
+    .project-state {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    .state-card {
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .state-label {
+      display: block;
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .state-value {
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .next-step {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-left: 3px solid var(--vscode-button-background);
+      background: color-mix(in srgb, var(--surface-3) 90%, transparent);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .next-step strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .workflow-pill {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      margin-left: 8px;
+      vertical-align: middle;
     }
 
     .header-actions {
@@ -491,8 +563,24 @@ export function getWebviewHtml(
   <header class="app-header">
     <div class="title-area">
       <h1>Color Token Manager</h1>
+      <span class="workflow-pill" id="workflowPill">Colors only</span>
       <p>Manage the token library, preview extraction safely, and expose the same knowledge to AI tools only when you want the extra help.</p>
       <div class="file-info" id="filePathDisplay">No file selected</div>
+      <div class="project-state" aria-label="Project state">
+        <div class="state-card"><span class="state-label">Workflow</span><div class="state-value" id="workflowState">colorsOnly</div></div>
+        <div class="state-card"><span class="state-label">Colors file</span><div class="state-value" id="colorsState">-</div></div>
+        <div class="state-card"><span class="state-label">Theme file</span><div class="state-value" id="themeState">-</div></div>
+        <div class="state-card"><span class="state-label">Theme provider</span><div class="state-value" id="themeProviderState">-</div></div>
+        <div class="state-card"><span class="state-label">Next write target</span><div class="state-value" id="nextWriteTargetState">-</div></div>
+      </div>
+      <div class="next-step" id="nextStep">
+        <strong>Next step</strong>
+        Open the manager, then preview the current file or run setup if the workspace is still unplanned.
+      </div>
+      <div class="next-step" id="projectNotes" style="margin-top:8px;">
+        <strong>What I found</strong>
+        No project notes yet.
+      </div>
     </div>
     <div class="header-actions">
       <button id="previewCurrentFile" type="button">Preview Current File</button>
@@ -728,10 +816,15 @@ export function getWebviewHtml(
       if (!state.colors || state.colors.length === 0) {
         const container = document.querySelector('.main-layout');
         if (container) {
+          const workflowText = state.workflow === 'themeOnly'
+            ? 'theme file'
+            : state.workflow === 'both'
+              ? 'colors and theme files'
+              : 'colors file';
           container.innerHTML =
             '<div class="empty-state fullpage">' +
-              '<h2>No color tokens found</h2>' +
-              '<p>No token/theme file is set up yet, or the current file has no color tokens.</p>' +
+              '<h2>No ' + workflowText + ' found</h2>' +
+              '<p>Set up your ' + workflowText + ' first, or open a source file to preview hardcoded colors.</p>' +
               '<div class="action-row">' +
                 '<button onclick="vscode.postMessage({type:&apos;setup&apos;})">Start Setup</button>' +
                 '<button class="ghost" onclick="vscode.postMessage({type:&apos;detectSetup&apos;})">Detect Automatically</button>' +
@@ -751,6 +844,42 @@ export function getWebviewHtml(
       document.getElementById('statAliases').textContent = String(aliases);
       document.getElementById('statUnique').textContent = String(unique);
       document.getElementById('filePathDisplay').textContent = state.filePath || 'No file loaded';
+      document.getElementById('workflowState').textContent = state.workflow || 'colorsOnly';
+      document.getElementById('colorsState').textContent = state.colorsFilePath || '-';
+      document.getElementById('themeState').textContent = state.themeFilePath || '-';
+      document.getElementById('themeProviderState').textContent = state.themeProviderFilePath || '-';
+      document.getElementById('nextWriteTargetState').textContent = state.nextWriteTarget || '-';
+      const projectNotesEl = document.getElementById('projectNotes');
+      if (projectNotesEl) {
+        const notes = Array.isArray(state.summaryNotes) ? state.summaryNotes.filter(Boolean) : [];
+        projectNotesEl.innerHTML =
+          '<strong>What I found</strong>' +
+          (notes.length ? notes.map((note) => '<div>' + note + '</div>').join('') : '<div>No strong signal yet; setup can help detect the right file.</div>');
+      }
+      const nextStepEl = document.getElementById('nextStep');
+      if (nextStepEl) {
+        if (state.themeProviderFilePath && state.themeFilePath) {
+          nextStepEl.innerHTML = '<strong>Next step</strong>Theme is driving this project. Audit the theme file first, then keep colors as the backing palette.';
+        } else if (state.workflow === 'both') {
+          nextStepEl.innerHTML = '<strong>Next step</strong>Split project detected. Use the theme file for semantic edits and keep colors as the source palette.';
+        } else if (state.workflow === 'themeOnly') {
+          nextStepEl.innerHTML = '<strong>Next step</strong>Theme-only project detected. Work directly in the theme file.';
+        } else {
+          nextStepEl.innerHTML = '<strong>Next step</strong>Preview the current file, or run setup if you want the extension to detect the right token file.';
+        }
+      }
+      const workflowText = state.workflow === 'themeOnly'
+        ? 'Theme only'
+        : state.workflow === 'both'
+          ? 'Colors + Theme'
+          : 'Colors only';
+      document.getElementById('workflowPill').textContent = workflowText;
+      const infoParts = [];
+      if (state.colorsFilePath) infoParts.push('Colors: ' + state.colorsFilePath);
+      if (state.themeFilePath) infoParts.push('Theme: ' + state.themeFilePath);
+      if (infoParts.length) {
+        document.getElementById('filePathDisplay').textContent = infoParts.join(' | ');
+      }
 
       renderTokenGroups();
       renderDetectedColors();
@@ -765,8 +894,13 @@ export function getWebviewHtml(
       const plans = (state.colorPlans || []);
 
       if (!plans.length) {
+        const workflowText = state.workflow === 'themeOnly'
+          ? 'theme file'
+          : state.workflow === 'both'
+            ? 'colors and theme files'
+            : 'colors file';
         container.innerHTML =
-          '<div class="empty-state">Open a source file — hardcoded colors found there will appear here with token name suggestions.</div>';
+          '<div class="empty-state">Open a supported source file to preview hardcoded colors for your ' + workflowText + '.</div>';
         return;
       }
 
@@ -846,7 +980,7 @@ export function getWebviewHtml(
         empty.className = 'empty-state';
         empty.textContent = state.colors && state.colors.length
           ? 'No matching tokens. Try a broader search.'
-          : 'No supported color tokens found yet. Set up a colors file or preview extraction to get started.';
+          : 'No supported token file is loaded yet. Set up your workflow or preview extraction to get started.';
         tokenGroupsContainer.appendChild(empty);
         return;
       }

@@ -14,13 +14,22 @@ import {
   type SelectionPreviewTarget,
 } from './colorExtractor';
 import {
-  getConfiguredColorsFile,
+  getConfiguredThemeFile,
   getKnownColorsFile,
-  pickColorsFile,
+  pickConfiguredProjectFile,
+  getConfiguredColorsFile,
   readColors,
   updateColor,
   validateColorValue,
 } from './colorFile';
+import {
+  getActiveProjectFiles,
+  getNextProjectWriteTarget,
+  describeProjectFileKind,
+  getProjectWorkflow,
+  getProjectSummary,
+  resolveProjectFile,
+} from './projectRouting';
 import { getTokenReferencePrefix, warnDeprecatedImportStyleIfNeeded } from './importUtils';
 import { buildThemeAwarePlans } from './tokenNaming';
 import { registerColorDiagnostics } from './diagnostics';
@@ -38,6 +47,11 @@ import { runSetupWizard } from './setup';
 import { findTokenFiles } from './tokenDetection';
 import { buildThemeAuditMarkdown, buildThemeAuditReport } from './themeAudit';
 import { exportDesignTokens, renameTokenAcrossProject, showUnusedTokens } from './tokenTools';
+import {
+  buildDesignSystemHealthDashboard,
+  buildDesignSystemHealthDashboardHtml,
+  exportDesignSystemHealthHtml,
+} from './dashboard';
 import {
   type AppColor,
   type FolderApplyResult,
@@ -59,6 +73,7 @@ let mcpStatusBarItem: vscode.StatusBarItem | undefined;
 let mcpServer: ColorTokenMcpServer | undefined;
 let mcpOutput: vscode.OutputChannel | undefined;
 let extensionRootPath: string | undefined;
+let dashboardPanel: vscode.WebviewPanel | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   extensionRootPath = context.extensionUri.fsPath;
@@ -220,6 +235,17 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   );
 
+  const dashboardDisposable = vscode.commands.registerCommand(
+    'colorTokenManager.openHealthDashboard',
+    async () => {
+      try {
+        await openHealthDashboard(context);
+      } catch (error) {
+        showError(error);
+      }
+    },
+  );
+
   const exportTokensDisposable = vscode.commands.registerCommand(
     'colorTokenManager.exportTokens',
     async () => {
@@ -256,7 +282,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
 
         if (selectedFile) {
-          await refreshWebview(selectedFile, 'Refreshed colors.');
+          await refreshWebview(selectedFile, `Refreshed ${await getSelectedProjectFileLabel(selectedFile)}.`);
         }
       } catch (error) {
         showError(error);
@@ -343,21 +369,21 @@ export function activate(context: vscode.ExtensionContext): void {
         const candidates = await findTokenFiles(workspaceFolder);
         if (!candidates.length) {
           vscode.window.showInformationMessage(
-            'No token/theme files detected. Use "Set Up Color Token Manager" to create one.',
+            'No colors or theme files detected. Use "Set Up Color Token Manager" to choose a workflow and create one.',
           );
           return;
         }
 
         const items = candidates.map((c) => ({
           label: `$(file-code) ${c.filePath}`,
-          description: `${c.kind} · confidence ${c.confidence}`,
+          description: `${describeDetectedKind(c.kind)} · confidence ${c.confidence}`,
           detail: c.reason,
           candidate: c,
         }));
 
         const selected = await vscode.window.showQuickPick(items, {
           title: 'Detected Token/Theme Files',
-          placeHolder: 'Select a file to use as your token file',
+          placeHolder: 'Select the colors or theme file to use',
         });
         if (!selected) {
           return;
@@ -379,7 +405,9 @@ export function activate(context: vscode.ExtensionContext): void {
           selected.candidate.kind,
           vscode.ConfigurationTarget.Workspace,
         );
-        vscode.window.showInformationMessage(`Token file set to ${selected.candidate.filePath}.`);
+        vscode.window.showInformationMessage(
+          `${describeDetectedKind(selected.candidate.kind)} set to ${selected.candidate.filePath}.`,
+        );
         await updateStatusBar();
       } catch (error) {
         showError(error);
@@ -398,7 +426,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
 
         const action = await vscode.window.showWarningMessage(
-          'Reset Color Token Manager setup? This clears all token file settings from workspace configuration.',
+          'Reset Color Token Manager setup? This clears the workflow and project file settings from workspace configuration.',
           { modal: true },
           'Reset',
         );
@@ -408,9 +436,13 @@ export function activate(context: vscode.ExtensionContext): void {
 
         const config = vscode.workspace.getConfiguration('colorTokenManager', workspaceFolder.uri);
         const keysToReset = [
+          'colorsFile',
+          'themeFile',
+          'projectWorkflow',
           'tokenFile',
           'tokenFilePath',
           'colorsFilePath',
+          'themeFilePath',
           'tokenExportName',
           'tokenObject',
           'referencePrefix',
@@ -446,6 +478,7 @@ export function activate(context: vscode.ExtensionContext): void {
     unusedTokensDisposable,
     auditDesignTokensDisposable,
     auditContrastDisposable,
+    dashboardDisposable,
     exportTokensDisposable,
     setupDisposable,
     pickDisposable,
@@ -466,6 +499,22 @@ export function activate(context: vscode.ExtensionContext): void {
   void updateStatusBar();
 }
 
+function describeDetectedKind(kind: string): string {
+  if (kind === 'theme') {
+    return 'Theme file';
+  }
+
+  if (kind === 'colors') {
+    return 'Colors file';
+  }
+
+  if (kind === 'tokens') {
+    return 'Token file';
+  }
+
+  return 'Custom project file';
+}
+
 export function deactivate(): void {
   watcher?.dispose();
   mcpServer?.dispose();
@@ -477,6 +526,9 @@ async function openColorManager(
   fileUri: vscode.Uri,
 ): Promise<void> {
   const colors = await readColors(fileUri);
+  const projectFiles = await getActiveProjectFiles(fileUri);
+  const projectSummary = await getProjectSummary(fileUri);
+  const nextWriteTarget = await getNextProjectWriteTarget(fileUri);
 
   if (panel) {
     panel.reveal(vscode.ViewColumn.One);
@@ -538,8 +590,70 @@ async function openColorManager(
     fileUri,
     colors,
     colorPlans,
+    {
+      workflow: projectFiles.workflow,
+      colorsFilePath: projectFiles.colorsFile?.fsPath ?? fileUri.fsPath,
+      themeFilePath: projectFiles.themeFile?.fsPath ?? '',
+      themeProviderFilePath: projectFiles.themeProviderFile?.fsPath ?? '',
+      summaryNotes: projectSummary.notes,
+      nextWriteTarget: nextWriteTarget.uri?.fsPath ?? '',
+      nextWriteTargetKind: nextWriteTarget.kind,
+    },
   );
   setupWatcher(fileUri);
+}
+
+async function openHealthDashboard(context: vscode.ExtensionContext): Promise<void> {
+  const dashboard = await buildDesignSystemHealthDashboard(vscode.window.activeTextEditor?.document.uri);
+
+  if (dashboardPanel) {
+    dashboardPanel.reveal(vscode.ViewColumn.One);
+  } else {
+    dashboardPanel = vscode.window.createWebviewPanel(
+      'designSystemHealthDashboard',
+      'Design System Health Dashboard',
+      vscode.ViewColumn.One,
+      { enableScripts: true, localResourceRoots: [context.extensionUri] },
+    );
+    dashboardPanel.onDidDispose(() => {
+      dashboardPanel = undefined;
+    });
+    dashboardPanel.webview.onDidReceiveMessage((message: { type?: string }) => {
+      void handleDashboardMessage(message, dashboard);
+    });
+  }
+
+  dashboardPanel.webview.html = buildDesignSystemHealthDashboardHtml(dashboard);
+}
+
+async function handleDashboardMessage(
+  message: { type?: string },
+  dashboard: Awaited<ReturnType<typeof buildDesignSystemHealthDashboard>>,
+): Promise<void> {
+  if (message.type === 'openReport') {
+    const report = dashboard.audit;
+    const markdown = buildThemeAuditMarkdown(report, 'all');
+    const document = await vscode.workspace.openTextDocument({ content: markdown, language: 'markdown' });
+    await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
+  }
+
+  if (message.type === 'exportHtml') {
+    const defaultUri = vscode.Uri.joinPath(
+      vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.file(process.cwd()),
+      `design-system-health-${Date.now()}.html`,
+    );
+    const targetUri = await vscode.window.showSaveDialog({
+      defaultUri,
+      filters: { HTML: ['html'] },
+    });
+    if (!targetUri) {
+      return;
+    }
+
+    const html = exportDesignSystemHealthHtml(dashboard);
+    await vscode.workspace.fs.writeFile(targetUri, Buffer.from(html, 'utf8'));
+    vscode.window.showInformationMessage(`Exported dashboard HTML to ${vscode.workspace.asRelativePath(targetUri)}.`);
+  }
 }
 
 async function handleWebviewMessage(message: {
@@ -560,18 +674,18 @@ async function handleWebviewMessage(message: {
         await handleCopyColor(message.value);
         break;
       case 'refresh':
-        await refreshWebview(selectedFile, 'Refreshed colors.');
+        await refreshWebview(selectedFile, await getSelectedProjectFileLabel(selectedFile) + ' refreshed.');
         break;
       case 'pickFileAgain':
         await handlePickFileAgain();
         break;
       case 'extractFromCurrentFile':
         await extractColorsFromCurrentFile(lastExtractionTarget);
-        await refreshWebview(selectedFile, 'Extracted colors from current file.');
+        await refreshWebview(selectedFile, 'Extracted tokens from current file.');
         break;
       case 'extractFromFolder':
         await extractColorsFromFolder();
-        await refreshWebview(selectedFile, 'Extracted colors from folder.');
+        await refreshWebview(selectedFile, 'Extracted tokens from folder.');
         break;
       case 'previewFromCurrentFile':
         await openCurrentFilePreview();
@@ -584,7 +698,7 @@ async function handleWebviewMessage(message: {
         break;
       case 'renameToken':
         await renameTokenAcrossProject();
-        await refreshWebview(selectedFile, 'Renamed token across project.');
+        await refreshWebview(selectedFile, 'Renamed token across the active project file set.');
         break;
       case 'findUnusedTokens':
         await showUnusedTokens();
@@ -638,13 +752,18 @@ async function getColorsFileOrSetup(
   contextUri?: vscode.Uri,
 ): Promise<vscode.Uri | undefined> {
   try {
-    const fileUri = await getConfiguredColorsFile(contextUri);
+    const workflow = getProjectWorkflow(contextUri);
+    const fileUri =
+      workflow === 'themeOnly'
+        ? await resolveProjectFile('theme', contextUri)
+        : await resolveProjectFile('colors', contextUri);
     if (fileUri) {
       return fileUri;
     }
   } catch (error) {
+    const summary = await getProjectSummary(contextUri);
     const action = await vscode.window.showWarningMessage(
-      error instanceof Error ? error.message : String(error),
+      `${error instanceof Error ? error.message : String(error)} ${summary.notes.length ? summary.notes.join('. ') + '.' : ''}`,
       'Run Setup',
     );
     if (action !== 'Run Setup') {
@@ -878,7 +997,8 @@ function rememberSelectionTarget(editor: vscode.TextEditor | undefined): void {
 }
 
 async function handlePickFileAgain(context?: vscode.ExtensionContext): Promise<void> {
-  const fileUri = await pickColorsFile();
+  const contextUri = vscode.window.activeTextEditor?.document.uri;
+  const fileUri = await pickConfiguredProjectFile(contextUri);
   if (!fileUri) {
     return;
   }
@@ -891,9 +1011,22 @@ async function handlePickFileAgain(context?: vscode.ExtensionContext): Promise<v
   if (context) {
     await openColorManager(context, fileUri);
   } else if (panel) {
-    await refreshWebview(fileUri, 'Selected colors.ts file changed.');
+    await refreshWebview(fileUri, `Selected ${await getSelectedProjectFileLabel(fileUri)} changed.`);
     setupWatcher(fileUri);
   }
+}
+
+async function getSelectedProjectFileLabel(fileUri: vscode.Uri): Promise<string> {
+  const active = await getActiveProjectFiles(fileUri);
+  if (active.themeFile?.toString() === fileUri.toString()) {
+    return describeProjectFileKind('theme');
+  }
+
+  if (active.colorsFile?.toString() === fileUri.toString()) {
+    return describeProjectFileKind('colors');
+  }
+
+  return 'project file';
 }
 
 function setupStatusBar(context: vscode.ExtensionContext): void {
@@ -1145,7 +1278,13 @@ function showMcpOutput(): void {
 }
 
 async function showThemeAudit(focus: 'all' | 'contrast'): Promise<void> {
-  const colorsFileUri = await getConfiguredColorsFile(vscode.window.activeTextEditor?.document.uri);
+  const contextUri = vscode.window.activeTextEditor?.document.uri;
+  const workflow = getProjectWorkflow(contextUri);
+  const colorsFileUri =
+    (workflow === 'themeOnly'
+      ? await getConfiguredThemeFile(contextUri)
+      : await getConfiguredColorsFile(contextUri)) ??
+    (await getConfiguredThemeFile(contextUri));
   if (!colorsFileUri) {
     return;
   }
@@ -1414,7 +1553,7 @@ async function updateStatusBar(): Promise<void> {
     selectedFile = knownFile;
   }
 
-  statusBarItem.text = knownFile ? '$(symbol-color) Color Tokens' : '$(symbol-color) Set up Colors';
+  statusBarItem.text = knownFile ? '$(symbol-color) Color Tokens' : '$(symbol-color) Set Up';
   statusBarItem.tooltip = knownFile
     ? `Open Color Token Manager\n${knownFile.fsPath}`
     : 'Set up Color Token Manager';
@@ -1483,7 +1622,7 @@ function setupWatcher(fileUri: vscode.Uri): void {
 
   const refresh = (changedUri: vscode.Uri) => {
     if (changedUri.toString() === fileUri.toString()) {
-      void refreshWebview(fileUri, 'colors.ts changed externally.');
+      void refreshWebview(fileUri, 'Managed project file changed externally.');
     }
   };
 
@@ -1491,17 +1630,22 @@ function setupWatcher(fileUri: vscode.Uri): void {
   watcher.onDidCreate(refresh);
   watcher.onDidDelete((deletedUri) => {
     if (deletedUri.toString() === fileUri.toString()) {
-      postStatus('Selected colors.ts was deleted.');
-      vscode.window.showWarningMessage('Selected colors.ts was deleted.');
+      postStatus('Selected project file was deleted.');
+      vscode.window.showWarningMessage('Selected project file was deleted.');
     }
   });
 }
 
 function postColors(fileUri: vscode.Uri, colors: AppColor[]): void {
+  const folder = vscode.workspace.getWorkspaceFolder(fileUri);
+  const configuration = vscode.workspace.getConfiguration('colorTokenManager', folder?.uri);
   void panel?.webview.postMessage({
     type: 'setColors',
     payload: {
       filePath: fileUri.fsPath,
+      workflow: configuration.get<string>('projectWorkflow', 'colorsOnly'),
+      colorsFilePath: configuration.get<string>('colorsFile', '') || configuration.get<string>('colorsFilePath', ''),
+      themeFilePath: configuration.get<string>('themeFile', '') || configuration.get<string>('themeFilePath', ''),
       colors,
     },
   });

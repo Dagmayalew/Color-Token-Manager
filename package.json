@@ -2,7 +2,7 @@
   "name": "color-token-manager",
   "displayName": "Color Token Manager",
   "description": "Extract hardcoded colors into tokens, manage colors.ts, preview refactors, WCAG contrast checks, and export design tokens for React Native and TypeScript.",
-  "version": "0.3.1",
+  "version": "0.3.4",
   "publisher": "dagmayalew",
   "license": "MIT",
   "pricing": "Free",
@@ -104,6 +104,10 @@
       {
         "command": "colorTokenManager.auditContrast",
         "title": "Audit Contrast"
+      },
+      {
+        "command": "colorTokenManager.openHealthDashboard",
+        "title": "Open Design System Health Dashboard"
       },
       {
         "command": "colorTokenManager.exportTokens",
@@ -325,15 +329,40 @@
           "default": "",
           "description": "Legacy custom path to colors.ts, relative to the workspace folder of the active file. Use tokenFilePath for theme.ts, tokens.ts, or design token files."
         },
+        "colorTokenManager.colorsFile": {
+          "type": "string",
+          "default": "",
+          "description": "Preferred path to the colors file, relative to the workspace folder of the active file. Takes priority over colorsFilePath and other legacy token file settings."
+        },
         "colorTokenManager.tokenFilePath": {
           "type": "string",
           "default": "",
           "description": "Custom path to the token/theme file, relative to the workspace folder of the active file. Supports colors.ts, theme.ts, themes.ts, tokens.ts, and designTokens.ts."
         },
+        "colorTokenManager.themeFilePath": {
+          "type": "string",
+          "default": "",
+          "description": "Preferred path to the theme file, relative to the workspace folder of the active file. Use this when theme tokens live in a different file from colors."
+        },
         "colorTokenManager.tokenFile": {
           "type": "string",
           "default": "",
           "description": "Path to the color or theme token file (e.g., src/theme/theme.ts, src/tokens/colors.ts). If empty, Color Token Manager will try to detect it automatically. Takes priority over tokenFilePath and colorsFilePath."
+        },
+        "colorTokenManager.themeFile": {
+          "type": "string",
+          "default": "",
+          "description": "Preferred path to the theme token file (e.g., src/theme/theme.ts). Takes priority over themeFilePath and tokenFilePath when set."
+        },
+        "colorTokenManager.projectWorkflow": {
+          "type": "string",
+          "enum": [
+            "colorsOnly",
+            "themeOnly",
+            "both"
+          ],
+          "default": "colorsOnly",
+          "description": "Remembers whether the current workspace is using colors only, theme only, or separate colors plus theme files."
         },
         "colorTokenManager.tokenExportName": {
           "type": "string",
@@ -524,7 +553,7 @@
     "format:check": "prettier . --check",
     "test": "npm run test:compile && npm run test:run",
     "test:compile": "tsc -p tsconfig.test.json",
-    "test:run": "node --require ./test/setup.cjs --test out-test/test/smoke.test.js out-test/test/colorFile.test.js out-test/test/colorExtractor.test.js out-test/test/globUtils.test.js out-test/test/workspaceUtils.test.js out-test/test/mcpServer.test.js out-test/test/themeAudit.test.js out-test/test/diagnostics.test.js out-test/test/themeTokenSupport.test.js out-test/test/tokenDetection.test.js out-test/test/tokenNaming.test.js out-test/test/importUtils.test.js out-test/test/cssAdapter.test.js out-test/test/htmlAdapter.test.js out-test/test/javascriptTypescriptAdapters.test.js out-test/test/previewOnlyAdapters.test.js out-test/test/languages/registry.test.js out-test/test/languages/settings.test.js",
+    "test:run": "node --require ./test/setup.cjs --test out-test/test/smoke.test.js out-test/test/colorFile.test.js out-test/test/colorExtractor.test.js out-test/test/globUtils.test.js out-test/test/workspaceUtils.test.js out-test/test/projectRouting.test.js out-test/test/dashboard.test.js out-test/test/mcpServer.test.js out-test/test/themeAudit.test.js out-test/test/diagnostics.test.js out-test/test/themeTokenSupport.test.js out-test/test/tokenDetection.test.js out-test/test/tokenNaming.test.js out-test/test/importUtils.test.js out-test/test/cssAdapter.test.js out-test/test/htmlAdapter.test.js out-test/test/javascriptTypescriptAdapters.test.js out-test/test/previewOnlyAdapters.test.js out-test/test/languages/registry.test.js out-test/test/languages/settings.test.js",
     "test:integration": "npm run compile && npm run test:integration:compile && node ./out-test/test/runTest.js",
     "test:integration:compile": "tsc -p tsconfig.integration.json",
     "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js --minify && esbuild src/mcpStandalone.ts --bundle --platform=node --format=cjs --outfile=dist/mcp-server.js --minify",

@@ -2,6 +2,14 @@
 
 Color Token Manager helps React Native and TypeScript projects manage color tokens from `colors.ts`, `theme.ts`, `themes.ts`, `tokens.ts`, or `designTokens.ts`.
 
+It supports three practical setup styles:
+
+- `colors only`
+- `theme only`
+- `colors + theme` split across separate files
+
+It also supports projects that keep colors and theme definitions in separate files, so users can choose the structure that matches their codebase.
+
 It can:
 
 - Read and edit color tokens from existing color, theme, or token files
@@ -28,6 +36,8 @@ It can:
 
 - Open Color Token Manager
 - Set Up Color Token Manager
+- Detect Theme/Color Setup
+- Reset Token Setup
 - Extract Colors From Current File
 - Preview Colors From Current File
 - Extract Colors From Folder
@@ -49,6 +59,7 @@ The setup wizard can:
 
 - Find an existing `colors.ts`
 - Find an existing `theme.ts`, `themes.ts`, `tokens.ts`, or `designTokens.ts`
+- Let you choose `colors only`, `theme only`, or `colors + theme`
 - Create `src/theme/colors.ts`
 - Create a custom `colors.ts` path
 - Set `tokenPathMode` to auto, flat, or nested
@@ -58,6 +69,15 @@ After setup, choose **Open Manager** or **Preview Current File** to continue saf
 ## Multi-Language Support
 
 Color Token Manager uses language adapters so each file type can define safe scan and replacement behavior. Safe mode is the default: JavaScript, TypeScript, CSS/SCSS/LESS, and HTML inline styles can be replaced after preview; other popular languages are scanned for visibility but stay preview-only.
+
+React projects are first-class and include both `jsx` and `tsx` support.
+
+The main workflow is:
+
+1. Pick a setup style: colors only, theme only, or colors + theme.
+2. Let the extension detect or create the right file(s).
+3. Preview before applying changes.
+4. Keep color and theme files separate when your project needs both.
 
 | Language                   | Scan |      Replace |
 | -------------------------- | ---: | -----------: |

@@ -1,6 +1,10 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { type TokenFileCandidate, type TokenFileKind } from './types';
+import {
+  type ThemeProviderCandidate,
+  type TokenFileCandidate,
+  type TokenFileKind,
+} from './types';
 
 // Folder names that are never scanned
 const IGNORED_SEGMENTS = new Set([
@@ -19,7 +23,9 @@ const IGNORED_SEGMENTS = new Set([
 // File name stems (without extension) that may be token files
 const TOKEN_FILE_STEMS = new Set([
   'colors',
+  'color',
   'theme',
+  'themeColors',
   'themes',
   'tokens',
   'design-tokens',
@@ -32,7 +38,9 @@ const TOKEN_FILE_STEMS = new Set([
 // Exported names that confirm a file is a token file
 const TOKEN_EXPORT_NAMES = new Set([
   'colors',
+  'color',
   'theme',
+  'themeColors',
   'themes',
   'tokens',
   'lightTheme',
@@ -45,11 +53,13 @@ const PATH_SCORES: Array<{ pattern: RegExp; score: number }> = [
   { pattern: /^src\/theme\/theme\.(ts|tsx|js|jsx)$/, score: 90 },
   { pattern: /^src\/theme\/index\.(ts|tsx|js|jsx)$/, score: 90 },
   { pattern: /^src\/theme\/colors\.(ts|tsx|js|jsx)$/, score: 85 },
+  { pattern: /^src\/theme\/themeColors\.(ts|tsx|js|jsx)$/, score: 85 },
   { pattern: /^src\/constants\/colors\.(ts|tsx|js|jsx)$/, score: 85 },
   { pattern: /^src\/styles\/colors\.(ts|tsx|js|jsx)$/, score: 80 },
   { pattern: /^src\/tokens?\.(ts|tsx|js|jsx)$/, score: 80 },
   { pattern: /^src\/design-tokens?\.(ts|tsx|js|jsx)$/, score: 80 },
   { pattern: /^theme\.(ts|tsx|js|jsx)$/, score: 70 },
+  { pattern: /^themeColors\.(ts|tsx|js|jsx)$/, score: 70 },
   { pattern: /^colors\.(ts|tsx|js|jsx)$/, score: 70 },
   { pattern: /^tokens?\.(ts|tsx|js|jsx)$/, score: 70 },
 ];
@@ -153,6 +163,41 @@ export async function findTokenFiles(
   return candidates.sort((a, b) => rankTokenFileCandidate(b) - rankTokenFileCandidate(a));
 }
 
+export async function findThemeProviderFiles(
+  workspaceFolder: vscode.WorkspaceFolder,
+): Promise<ThemeProviderCandidate[]> {
+  const excludeGlob = `{${[...IGNORED_SEGMENTS].map((s) => `**/${s}/**`).join(',')}}`;
+  const pattern = new vscode.RelativePattern(workspaceFolder, '**/*.{ts,tsx,js,jsx}');
+  const files = await vscode.workspace.findFiles(pattern, excludeGlob);
+  const candidates: ThemeProviderCandidate[] = [];
+
+  for (const fileUri of files) {
+    const relativePath = vscode.workspace.asRelativePath(fileUri, false).replace(/\\/g, '/');
+    if (!/(provider|theme-provider|themeprovider)/i.test(relativePath)) {
+      continue;
+    }
+
+    let text: string;
+    try {
+      text = Buffer.from(await vscode.workspace.fs.readFile(fileUri)).toString('utf8');
+    } catch {
+      continue;
+    }
+
+    if (!isThemeProviderSource(text)) {
+      continue;
+    }
+
+    candidates.push({
+      filePath: relativePath,
+      confidence: computeProviderConfidence(relativePath),
+      reason: buildProviderReason(relativePath),
+    });
+  }
+
+  return candidates.sort((a, b) => b.confidence - a.confidence);
+}
+
 function computeConfidence(relativePath: string): number {
   const lower = relativePath.toLowerCase();
   for (const { pattern, score } of PATH_SCORES) {
@@ -173,4 +218,28 @@ function buildReason(relativePath: string, kind: TokenFileKind, exportNames: str
   const base = path.basename(relativePath);
   const shown = exportNames.slice(0, 3).join(', ');
   return `${base} exports [${shown}] detected as ${kind}`;
+}
+
+function isThemeProviderSource(text: string): boolean {
+  return (
+    /ThemeProvider/.test(text) ||
+    /theme\s*=/.test(text) ||
+    /tokens\s*=/.test(text) ||
+    /provider/i.test(text)
+  );
+}
+
+function computeProviderConfidence(relativePath: string): number {
+  const lower = relativePath.toLowerCase();
+  if (/theme-provider|themeprovider/.test(lower)) {
+    return 90;
+  }
+  if (/provider/.test(lower)) {
+    return 75;
+  }
+  return 60;
+}
+
+function buildProviderReason(relativePath: string): string {
+  return `${path.basename(relativePath)} looks like a ThemeProvider entry point`;
 }

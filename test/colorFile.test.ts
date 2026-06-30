@@ -165,6 +165,29 @@ test('getKnownColorsFile prefers tokenFilePath over legacy colorsFilePath', asyn
   assert.equal(known?.fsPath, path.join(dir, 'theme.ts'));
 });
 
+test('getConfiguredColorsFile uses themeFile when workflow is themeOnly', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-'));
+  tempDirs.push(dir);
+  fs.writeFileSync(path.join(dir, 'colors.ts'), `export const colors = { primary: '#000000' };`);
+  fs.writeFileSync(
+    path.join(dir, 'theme.ts'),
+    `export const theme = { colors: { primary: '#FFFFFF' } };`,
+  );
+
+  (vscode as unknown as { __setWorkspaceRoot(value: string): void }).__setWorkspaceRoot(dir);
+  (vscode as unknown as { __setTestConfig(values: Record<string, unknown>): void }).__setTestConfig(
+    {
+      projectWorkflow: 'themeOnly',
+      themeFile: 'theme.ts',
+      colorsFile: 'colors.ts',
+    },
+  );
+
+  const known = await getKnownColorsFile();
+
+  assert.equal(known?.fsPath, path.join(dir, 'theme.ts'));
+});
+
 const tempDirs: string[] = [];
 
 beforeEach(() => {

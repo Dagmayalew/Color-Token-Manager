@@ -1,9 +1,18 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { getConfiguredColorsFile, readColors, renameColorToken } from './colorFile';
+import {
+  readColors,
+  renameColorToken,
+} from './colorFile';
 import { getDefaultDialogUri } from './workspaceUtils';
 import { globToRegExp } from './globUtils';
 import { getColorsIdentifier } from './importUtils';
+import {
+  describeProjectFileKind,
+  getNextProjectWriteTarget,
+  getProjectWorkflow,
+  resolveProjectFile,
+} from './projectRouting';
 import { type AppColor } from './types';
 
 const SOURCE_GLOB = '**/*.{ts,tsx,js,jsx}';
@@ -45,14 +54,17 @@ export function toNestedObject(colors: AppColor[]): Record<string, unknown> {
 }
 
 export async function renameTokenAcrossProject(): Promise<void> {
-  const colorsFileUri = await getConfiguredColorsFile(vscode.window.activeTextEditor?.document.uri);
-  if (!colorsFileUri) {
+  const selection = await getProjectTokenSelection(vscode.window.activeTextEditor?.document.uri);
+  if (!selection) {
     return;
   }
 
+  const { kind, uri: colorsFileUri } = selection;
   const colors = await readColors(colorsFileUri);
   if (!colors.length) {
-    vscode.window.showInformationMessage('No color tokens were found in the token file.');
+    vscode.window.showInformationMessage(
+      `No color tokens were found in the configured ${describeProjectFileKind(kind)}.`,
+    );
     return;
   }
 
@@ -61,14 +73,14 @@ export async function renameTokenAcrossProject(): Promise<void> {
       label: color.key,
       description: color.value,
     })),
-    { placeHolder: 'Choose a token to rename' },
+    { placeHolder: `Choose a token to rename in the ${describeProjectFileKind(kind)}` },
   );
   if (!oldItem) {
     return;
   }
 
   const newKey = await vscode.window.showInputBox({
-    prompt: `Rename ${getColorsIdentifier()}.${oldItem.label} to`,
+    prompt: `Rename ${getColorsIdentifier()}.${oldItem.label} in the ${describeProjectFileKind(kind)} to`,
     value: oldItem.label,
     validateInput: validateTokenPath,
   });
@@ -107,20 +119,22 @@ export async function renameTokenAcrossProject(): Promise<void> {
 
   await saveDocuments(changedDocuments);
   vscode.window.showInformationMessage(
-    `Renamed ${getColorsIdentifier()}.${oldItem.label} to ${getColorsIdentifier()}.${newKey} in ${changedDocuments.length} files.`,
+    `Renamed ${getColorsIdentifier()}.${oldItem.label} to ${getColorsIdentifier()}.${newKey} in the ${describeProjectFileKind(kind)} and updated ${changedDocuments.length} files.`,
   );
 }
 
 export async function showUnusedTokens(): Promise<void> {
-  const colorsFileUri = await getConfiguredColorsFile(vscode.window.activeTextEditor?.document.uri);
-  if (!colorsFileUri) {
+  const selection = await getProjectTokenSelection(vscode.window.activeTextEditor?.document.uri);
+  if (!selection) {
     return;
   }
 
+  const { kind, uri: colorsFileUri } = selection;
   const { unused, total } = await findUnusedColors(colorsFileUri);
   const content = buildUnusedTokenReport(colorsFileUri, unused, total);
   const document = await vscode.workspace.openTextDocument({ content, language: 'markdown' });
   await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
+  vscode.window.showInformationMessage(`Opened unused-token report for the ${describeProjectFileKind(kind)}.`);
 }
 
 export async function findUnusedColors(
@@ -146,20 +160,23 @@ export async function findUnusedColors(
 }
 
 export async function exportDesignTokens(): Promise<void> {
-  const colorsFileUri = await getConfiguredColorsFile(vscode.window.activeTextEditor?.document.uri);
-  if (!colorsFileUri) {
+  const selection = await getProjectTokenSelection(vscode.window.activeTextEditor?.document.uri);
+  if (!selection) {
     return;
   }
 
+  const { kind, uri: colorsFileUri } = selection;
   const colors = await readColors(colorsFileUri);
   if (!colors.length) {
-    vscode.window.showInformationMessage('No color tokens were found in the token file.');
+    vscode.window.showInformationMessage(
+      `No color tokens were found in the configured ${describeProjectFileKind(kind)}.`,
+    );
     return;
   }
 
   const format = await vscode.window.showQuickPick(
     EXPORT_FORMATS.map((label) => ({ label, extension: getExportExtension(label) })),
-    { placeHolder: 'Choose export format' },
+    { placeHolder: `Choose export format for the ${describeProjectFileKind(kind)}` },
   );
   if (!format) {
     return;
@@ -182,8 +199,28 @@ export async function exportDesignTokens(): Promise<void> {
   const content = serializeTokens(colors, format.label);
   await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
   vscode.window.showInformationMessage(
-    `Exported ${colors.length} color tokens to ${vscode.workspace.asRelativePath(targetUri)}.`,
+    `Exported ${colors.length} color tokens from the ${describeProjectFileKind(kind)} to ${vscode.workspace.asRelativePath(targetUri)}.`,
   );
+}
+
+async function getProjectTokenSelection(
+  contextUri?: vscode.Uri,
+): Promise<{ kind: 'colors' | 'theme'; uri: vscode.Uri } | null> {
+  const workflow = getProjectWorkflow(contextUri);
+  if (workflow === 'themeOnly') {
+    const uri = await resolveProjectFile('theme', contextUri);
+    return uri ? { kind: 'theme', uri } : null;
+  }
+
+  if (workflow === 'both') {
+    const next = await getNextProjectWriteTarget(contextUri);
+    if (next.uri) {
+      return { kind: next.kind, uri: next.uri };
+    }
+  }
+
+  const uri = await resolveProjectFile('colors', contextUri);
+  return uri ? { kind: 'colors', uri } : null;
 }
 
 export function serializeTokens(colors: AppColor[], format: string): string {

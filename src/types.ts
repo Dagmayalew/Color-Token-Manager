@@ -131,6 +131,12 @@ export type TokenFileCandidate = {
   reason: string;
 };
 
+export type ThemeProviderCandidate = {
+  filePath: string;
+  confidence: number;
+  reason: string;
+};
+
 // ── Phase 4: Color series naming ──────────────────────────────────────────────
 
 /** A ranked suggestion for what to name a color token. */

@@ -1,7 +1,11 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { type AppColor } from './types';
-import { getContextUri, resolveConfiguredFileUri } from './workspaceUtils';
+import {
+  getProjectWorkflow,
+  pickProjectFile,
+  resolveProjectFile,
+} from './projectRouting';
 
 const TOKEN_FILE_GLOB =
   '**/{colors,theme,themes,tokens,designTokens,design-tokens,designSystem,design-system}.ts';
@@ -50,25 +54,7 @@ export async function findColorFiles(): Promise<vscode.Uri[]> {
 }
 
 export async function getConfiguredColorsFile(contextUri?: vscode.Uri): Promise<vscode.Uri | null> {
-  if (!vscode.workspace.workspaceFolders?.length) {
-    throw new Error('Open a workspace before using Color Token Manager.');
-  }
-
-  const context = getContextUri(contextUri);
-  const configuredPath = getConfiguredTokenFilePath(context);
-
-  if (configuredPath) {
-    const fileUri = resolveConfiguredFileUri(configuredPath, context);
-
-    try {
-      await vscode.workspace.fs.stat(fileUri);
-      return fileUri;
-    } catch {
-      throw new Error(`Configured token file was not found: ${configuredPath}`);
-    }
-  }
-
-  return pickColorsFile(context);
+  return resolveProjectFile('colors', contextUri);
 }
 
 export async function getKnownColorsFile(contextUri?: vscode.Uri): Promise<vscode.Uri | undefined> {
@@ -76,76 +62,12 @@ export async function getKnownColorsFile(contextUri?: vscode.Uri): Promise<vscod
     return undefined;
   }
 
-  const context = getContextUri(contextUri);
-  const configuredPath = getConfiguredTokenFilePath(context);
-
-  if (configuredPath) {
-    const fileUri = resolveConfiguredFileUri(configuredPath, context);
-
-    try {
-      await vscode.workspace.fs.stat(fileUri);
-      return fileUri;
-    } catch {
-      return undefined;
-    }
-  }
-
-  const files = await findColorFiles();
-  if (!files.length) {
-    return undefined;
-  }
-
-  const workspaceFolder = context ? vscode.workspace.getWorkspaceFolder(context) : undefined;
-  if (workspaceFolder) {
-    const inFolder = files.filter(
-      (file) =>
-        vscode.workspace.getWorkspaceFolder(file)?.uri.toString() ===
-        workspaceFolder.uri.toString(),
-    );
-    if (inFolder.length === 1) {
-      return inFolder[0];
-    }
-  }
-
-  return files.length === 1 ? files[0] : undefined;
+  const fileUri = await resolveProjectFile('colors', contextUri);
+  return fileUri ?? undefined;
 }
 
 export async function pickColorsFile(contextUri?: vscode.Uri): Promise<vscode.Uri | null> {
-  const files = await findColorFiles();
-
-  if (!files.length) {
-    vscode.window.showErrorMessage(
-      'No colors.ts, theme.ts, or tokens.ts file found in the current workspace.',
-    );
-    return null;
-  }
-
-  const context = getContextUri(contextUri);
-  const workspaceFolder = context ? vscode.workspace.getWorkspaceFolder(context) : undefined;
-  const scopedFiles = workspaceFolder
-    ? files.filter(
-        (file) =>
-          vscode.workspace.getWorkspaceFolder(file)?.uri.toString() ===
-          workspaceFolder.uri.toString(),
-      )
-    : files;
-  const candidates = scopedFiles.length ? scopedFiles : files;
-
-  if (candidates.length === 1) {
-    return candidates[0];
-  }
-
-  const items = candidates.map((uri) => ({
-    label: vscode.workspace.asRelativePath(uri),
-    description: uri.fsPath,
-    uri,
-  }));
-
-  const selected = await vscode.window.showQuickPick(items, {
-    placeHolder: 'Select the token or theme file to manage',
-  });
-
-  return selected?.uri ?? null;
+  return pickProjectFile('colors', contextUri);
 }
 
 export async function createColorsFile(
@@ -436,8 +358,52 @@ async function writeFileText(fileUri: vscode.Uri, text: string): Promise<void> {
   await vscode.workspace.fs.writeFile(fileUri, Buffer.from(text, 'utf8'));
 }
 
-function getConfiguredTokenFilePath(context?: vscode.Uri): string {
+export function getConfiguredColorsFilePath(context?: vscode.Uri): string {
+  return getConfiguredProjectFilePath(context, 'colors');
+}
+
+export async function getConfiguredThemeFile(contextUri?: vscode.Uri): Promise<vscode.Uri | null> {
+  return resolveProjectFile('theme', contextUri);
+}
+
+export async function pickConfiguredProjectFile(
+  contextUri?: vscode.Uri,
+): Promise<vscode.Uri | null> {
+  const workflow = getProjectWorkflow(contextUri);
+  if (workflow === 'themeOnly') {
+    return getConfiguredThemeFile(contextUri);
+  }
+  return getConfiguredColorsFile(contextUri);
+}
+
+function getConfiguredProjectFilePath(
+  context: vscode.Uri | undefined,
+  kind: 'colors' | 'theme',
+): string {
   const configuration = vscode.workspace.getConfiguration('colorTokenManager', context);
+
+  if (kind === 'theme') {
+    const themeFile = configuration.get<string>('themeFile', '').trim();
+    if (themeFile) {
+      return themeFile;
+    }
+
+    const themeFilePath = configuration.get<string>('themeFilePath', '').trim();
+    if (themeFilePath) {
+      return themeFilePath;
+    }
+
+    const tokenFilePath = configuration.get<string>('tokenFilePath', '').trim();
+    if (tokenFilePath) {
+      return tokenFilePath;
+    }
+  }
+
+  const colorsFile = configuration.get<string>('colorsFile', '').trim();
+  if (colorsFile) {
+    return colorsFile;
+  }
+
   const tokenFile = configuration.get<string>('tokenFile', '').trim();
   if (tokenFile) {
     return tokenFile;

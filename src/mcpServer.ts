@@ -2,10 +2,12 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import {
   getConfiguredColorsFile,
+  getConfiguredThemeFile,
   normalizeColorValue,
   readColors,
   validateColorValue,
 } from './colorFile';
+import { resolveProjectFile } from './projectRouting';
 import { extractHardcodedColorsFromText, generateTokenName } from './colorExtractor';
 import { buildPreviewForDocument, createPreviewPlanner } from './colorPlan';
 import { getContrastRatio } from './colorUtils';
@@ -476,7 +478,7 @@ export function getMcpHelpResource(): JsonValue {
     server: SERVER_NAME,
     extensionId: EXTENSION_ID,
     summary:
-      'Color Token Manager exposes the workspace colors.ts graph to local AI coding agents over MCP stdio.',
+      'Color Token Manager exposes the workspace token and theme graph to local AI coding agents over MCP stdio.',
     safeWorkflow: [
       'Read colors://tokens or colors://tokens/flat before suggesting token edits.',
       'Use colors://tokens/unused before proposing token removal.',
@@ -662,11 +664,10 @@ function flattenColors(colors: Awaited<ReturnType<typeof readColors>>): Record<s
 }
 
 async function getActiveColorsFile(contextUri?: vscode.Uri): Promise<vscode.Uri> {
-  const colorsFileUri = await getConfiguredColorsFile(
-    contextUri ?? vscode.window.activeTextEditor?.document.uri,
-  );
+  const resolvedContext = contextUri ?? vscode.window.activeTextEditor?.document.uri;
+  const colorsFileUri = (await resolveProjectFile('colors', resolvedContext)) ?? (await resolveProjectFile('theme', resolvedContext));
   if (!colorsFileUri) {
-    throw new Error('No colors.ts file is configured for this workspace.');
+    throw new Error('No project file is configured for this workspace.');
   }
 
   assertInActiveWorkspace(colorsFileUri);

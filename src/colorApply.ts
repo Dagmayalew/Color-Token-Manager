@@ -200,7 +200,9 @@ export async function extractColorsFromCurrentFile(targetDocumentUri?: vscode.Ur
   }
 
   if (path.basename(document.uri.fsPath) === 'colors.ts') {
-    vscode.window.showInformationMessage('Open another file to extract hardcoded colors.');
+    vscode.window.showInformationMessage(
+      'Open a source file that is not the active token file, or run Setup if the workspace has not been detected yet.',
+    );
     return;
   }
 
@@ -210,7 +212,9 @@ export async function extractColorsFromCurrentFile(targetDocumentUri?: vscode.Ur
   }
 
   if (document.uri.toString() === colorsFileUri.toString()) {
-    vscode.window.showInformationMessage('Open another file to extract hardcoded colors.');
+    vscode.window.showInformationMessage(
+      'This looks like the active token file. Open a different source file, or run Setup if you want to change the project target.',
+    );
     return;
   }
 
