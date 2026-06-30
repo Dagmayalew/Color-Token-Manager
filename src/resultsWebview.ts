@@ -12,67 +12,102 @@ export function getResultsWebviewHtml(result: FolderApplyResult): string {
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
   <title>Color Extraction Results</title>
   <style>
+    :root {
+      --bg: linear-gradient(180deg, color-mix(in srgb, var(--vscode-editor-background) 92%, #0f172a 8%), var(--vscode-editor-background));
+      --panel: color-mix(in srgb, var(--vscode-sideBar-background) 88%, transparent);
+      --panel-2: var(--vscode-editorWidget-background);
+      --border: color-mix(in srgb, var(--vscode-panel-border) 70%, transparent);
+      --radius: 12px;
+      --radius-sm: 10px;
+      --shadow: 0 12px 30px color-mix(in srgb, black 14%, transparent);
+      --muted: var(--vscode-descriptionForeground);
+    }
+
+    * { box-sizing: border-box; }
+
     body {
-      background: var(--vscode-editor-background);
+      background: var(--bg);
       color: var(--vscode-editor-foreground);
       font-family: var(--vscode-font-family);
       font-size: var(--vscode-font-size);
       margin: 0;
-      padding: 24px;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .shell {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      gap: 16px;
     }
 
     header {
-      margin-bottom: 20px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px 18px 16px;
     }
 
     h1 {
-      font-size: 24px;
-      font-weight: 600;
+      font-size: clamp(22px, 2vw, 30px);
+      font-weight: 650;
       margin: 0 0 8px;
+      letter-spacing: -0.02em;
     }
 
     .meta {
-      color: var(--vscode-descriptionForeground);
+      color: var(--muted);
       overflow-wrap: anywhere;
+      font-size: 12px;
+      line-height: 1.5;
     }
 
     .summary {
       display: grid;
-      gap: 8px;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      margin-bottom: 20px;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     }
 
     .metric {
-      border: 1px solid var(--vscode-panel-border);
-      padding: 10px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      box-shadow: 0 1px 0 color-mix(in srgb, white 4%, transparent) inset;
     }
 
     .metric strong {
       display: block;
-      font-size: 20px;
+      font-size: 24px;
+      line-height: 1.1;
       margin-bottom: 4px;
     }
 
     .file {
-      border: 1px solid var(--vscode-panel-border);
-      margin-bottom: 12px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
     }
 
     .file-header {
-      border-bottom: 1px solid var(--vscode-panel-border);
+      background: color-mix(in srgb, var(--panel-2) 80%, transparent);
+      border-bottom: 1px solid var(--border);
       font-weight: 600;
-      padding: 10px;
+      padding: 12px 14px;
       overflow-wrap: anywhere;
     }
 
     .row {
       align-items: center;
-      border-bottom: 1px solid var(--vscode-panel-border);
+      border-bottom: 1px solid var(--border);
       display: grid;
-      gap: 10px;
+      gap: 12px;
       grid-template-columns: 70px minmax(100px, 160px) minmax(160px, 1fr) 80px auto;
-      padding: 8px 10px;
+      padding: 12px 14px;
     }
 
     .row:last-child {
@@ -82,11 +117,12 @@ export function getResultsWebviewHtml(result: FolderApplyResult): string {
     button {
       background: var(--vscode-button-background);
       border: 0;
+      border-radius: 999px;
       color: var(--vscode-button-foreground);
       cursor: pointer;
       font: inherit;
-      min-height: 26px;
-      padding: 2px 8px;
+      min-height: 28px;
+      padding: 4px 12px;
     }
 
     button:hover {
@@ -97,9 +133,10 @@ export function getResultsWebviewHtml(result: FolderApplyResult): string {
       background: var(--vscode-badge-background);
       color: var(--vscode-badge-foreground);
       font-size: 11px;
-      padding: 3px 6px;
+      padding: 4px 8px;
       text-transform: uppercase;
       width: fit-content;
+      border-radius: 999px;
     }
 
     .badge.add,
@@ -109,22 +146,35 @@ export function getResultsWebviewHtml(result: FolderApplyResult): string {
     }
 
     .empty {
-      border: 1px solid var(--vscode-panel-border);
-      color: var(--vscode-descriptionForeground);
-      padding: 24px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--muted);
+      padding: 28px;
       text-align: center;
+      box-shadow: var(--shadow);
+    }
+
+    @media (max-width: 760px) {
+      body { padding: 12px; }
+      header { padding: 16px; }
+      .summary { grid-template-columns: 1fr 1fr; }
+      .row { grid-template-columns: 1fr; }
+      .row > * { min-width: 0; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Color Extraction Results</h1>
-    <div class="meta" id="folder"></div>
-    <div class="meta" id="colorsFile"></div>
-  </header>
+  <div class="shell">
+    <header>
+      <h1>Color Extraction Results</h1>
+      <div class="meta" id="folder"></div>
+      <div class="meta" id="colorsFile"></div>
+    </header>
 
-  <section class="summary" id="summary"></section>
-  <main id="files"></main>
+    <section class="summary" id="summary"></section>
+    <main id="files"></main>
+  </div>
 
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();

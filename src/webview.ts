@@ -48,18 +48,22 @@ export function getWebviewHtml(
   <title>Color Token Manager</title>
   <style>
     :root {
-      --surface-1: var(--vscode-sideBar-background);
+      --bg: radial-gradient(circle at top left, color-mix(in srgb, var(--vscode-button-background) 16%, transparent), transparent 34%), linear-gradient(180deg, color-mix(in srgb, var(--vscode-editor-background) 94%, #0f172a 6%), var(--vscode-editor-background));
+      --surface-1: color-mix(in srgb, var(--vscode-sideBar-background) 88%, transparent);
       --surface-2: var(--vscode-editor-background);
-      --surface-3: var(--vscode-editorWidget-background);
-      --border: var(--vscode-panel-border);
-      --radius: 6px;
+      --surface-3: color-mix(in srgb, var(--vscode-editorWidget-background) 94%, transparent);
+      --border: color-mix(in srgb, var(--vscode-panel-border) 68%, transparent);
+      --border-strong: color-mix(in srgb, var(--vscode-panel-border) 88%, transparent);
+      --radius: 14px;
+      --radius-sm: 10px;
       --accent: var(--vscode-button-background);
       --text-muted: var(--vscode-descriptionForeground);
+      --shadow: 0 14px 32px color-mix(in srgb, black 14%, transparent);
     }
 
     * { box-sizing: border-box; }
     body {
-      background-color: var(--surface-2);
+      background: var(--bg);
       color: var(--vscode-editor-foreground);
       font-family: var(--vscode-font-family);
       font-size: var(--vscode-font-size);
@@ -67,14 +71,14 @@ export function getWebviewHtml(
       padding: 0;
       display: flex;
       flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
+      min-height: 100vh;
+      overflow: auto;
     }
 
     .app-header {
-      padding: 16px 24px;
+      padding: 20px 24px;
       border-bottom: 1px solid var(--border);
-      background: var(--surface-1);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--surface-1) 92%, transparent), color-mix(in srgb, var(--surface-2) 92%, transparent));
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
@@ -82,17 +86,18 @@ export function getWebviewHtml(
     }
 
     .title-area h1 {
-      font-size: 1.4rem;
-      margin: 0 0 4px 0;
-      font-weight: 600;
+      font-size: clamp(2rem, 2.8vw, 2.8rem);
+      margin: 0 0 6px 0;
+      font-weight: 750;
+      letter-spacing: -0.04em;
     }
 
     .title-area p {
-      font-size: 12px;
+      font-size: 13px;
       color: var(--text-muted);
       margin: 0 0 10px;
-      line-height: 1.45;
-      max-width: 56ch;
+      line-height: 1.55;
+      max-width: 58ch;
     }
 
     .file-info {
@@ -100,23 +105,25 @@ export function getWebviewHtml(
       font-size: 11px;
       color: var(--text-muted);
       background: var(--surface-3);
-      padding: 4px 8px;
-      border-radius: 4px;
+      padding: 6px 10px;
+      border-radius: 999px;
       display: inline-block;
+      border: 1px solid var(--border);
     }
 
     .project-state {
       display: grid;
-      gap: 8px;
-      margin-top: 10px;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     }
 
     .state-card {
       background: var(--surface-3);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      padding: 12px 13px;
+      box-shadow: 0 1px 0 color-mix(in srgb, white 4%, transparent) inset;
     }
 
     .state-label {
@@ -134,11 +141,14 @@ export function getWebviewHtml(
 
     .next-step {
       margin-top: 12px;
-      padding: 10px 12px;
-      border-left: 3px solid var(--vscode-button-background);
-      background: color-mix(in srgb, var(--surface-3) 90%, transparent);
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--surface-3) 92%, transparent);
       font-size: 12px;
       line-height: 1.5;
+      box-shadow: var(--shadow);
     }
 
     .next-step strong {
@@ -149,11 +159,11 @@ export function getWebviewHtml(
     .workflow-pill {
       display: inline-block;
       font-size: 11px;
-      padding: 2px 8px;
+      padding: 4px 10px;
       border-radius: 999px;
       background: var(--vscode-badge-background);
       color: var(--vscode-badge-foreground);
-      margin-left: 8px;
+      margin-left: 10px;
       vertical-align: middle;
     }
 
@@ -165,20 +175,32 @@ export function getWebviewHtml(
     }
 
     .summary-strip {
-      display: flex;
-      gap: 24px;
-      padding: 12px 24px;
+      display: grid;
+      gap: 12px;
+      padding: 14px 24px;
       background: var(--surface-1);
       border-bottom: 1px solid var(--border);
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     }
 
-    .stat-item { display: flex; flex-direction: column; }
-    .stat-value { font-size: 18px; font-weight: 700; line-height: 1.2; }
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 0 color-mix(in srgb, white 4%, transparent) inset;
+    }
+
+    .stat-value { font-size: 18px; font-weight: 750; line-height: 1.2; }
     .stat-label { font-size: 10px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
 
     .main-layout {
       display: flex;
       flex: 1;
+      min-height: 0;
       overflow: hidden;
     }
 
@@ -190,26 +212,39 @@ export function getWebviewHtml(
       display: flex;
       flex-direction: column;
       gap: 4px;
+      flex: 0 0 200px;
+      overflow: auto;
     }
 
     .nav-button {
       background: transparent;
-      border: none;
+      border: 1px solid transparent;
       color: var(--vscode-foreground);
       text-align: left;
-      padding: 8px 12px;
-      border-radius: var(--radius);
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 8px;
-      min-height: 34px;
+      min-height: 38px;
     }
 
-    .nav-button:hover { background: var(--vscode-list-hoverBackground); }
+    .nav-hint {
+      display: block;
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    .nav-button:hover {
+      background: var(--vscode-list-hoverBackground);
+      border-color: var(--border);
+    }
     .nav-button.active {
-      background: var(--vscode-list-activeSelectionBackground);
+      background: color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 85%, var(--surface-3));
       color: var(--vscode-list-activeSelectionForeground);
+      border-color: color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 35%, var(--border));
     }
 
     .content-pane {
@@ -217,6 +252,8 @@ export function getWebviewHtml(
       overflow-y: auto;
       padding: 24px;
       display: none;
+      min-width: 0;
+      scrollbar-gutter: stable;
     }
 
     .content-pane.active { display: block; }
@@ -226,12 +263,13 @@ export function getWebviewHtml(
       justify-content: space-between;
       margin-bottom: 16px;
       position: sticky;
-      top: -24px;
-      background: var(--surface-2);
-      padding: 8px 0;
+      top: 0;
+      background: color-mix(in srgb, var(--surface-2) 92%, transparent);
+      padding: 10px 0 12px;
       z-index: 10;
       gap: 12px;
       align-items: center;
+      backdrop-filter: blur(12px);
     }
 
     .search-input {
@@ -239,41 +277,54 @@ export function getWebviewHtml(
       background: var(--vscode-input-background);
       color: var(--vscode-input-foreground);
       border: 1px solid var(--vscode-input-border);
-      padding: 6px 12px;
-      border-radius: var(--radius);
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
       min-width: 180px;
     }
 
     .token-group {
       margin-bottom: 24px;
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
     }
 
     .group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
       font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
       color: var(--text-muted);
-      margin-bottom: 8px;
       border-bottom: 1px solid var(--border);
-      padding-bottom: 4px;
+      padding: 12px 14px;
+      letter-spacing: 0.08em;
     }
 
     .token-row {
       display: grid;
-      grid-template-columns: 40px 1fr 140px 180px;
-      align-items: center;
-      gap: 12px;
-      padding: 8px;
-      border-radius: var(--radius);
-      border-bottom: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+      grid-template-columns: 40px minmax(0, 1fr) minmax(240px, 320px);
+      align-items: start;
+      gap: 14px;
+      padding: 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+      background: color-mix(in srgb, var(--surface-3) 92%, transparent);
+      margin-bottom: 10px;
     }
 
-    .token-row:hover { background: var(--vscode-list-hoverBackground); }
+    .token-row:hover {
+      background: color-mix(in srgb, var(--vscode-list-hoverBackground) 88%, transparent);
+    }
 
     .swatch-large {
       width: 32px;
       height: 32px;
-      border-radius: 6px;
+      border-radius: 10px;
       border: 1px solid var(--border);
       cursor: pointer;
       transition: transform 0.1s;
@@ -289,11 +340,11 @@ export function getWebviewHtml(
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      gap: 4px;
+      gap: 6px;
     }
 
     .token-key {
-      font-weight: 600;
+      font-weight: 700;
       font-family: var(--vscode-editor-font-family);
       white-space: nowrap;
       overflow: hidden;
@@ -308,6 +359,26 @@ export function getWebviewHtml(
       flex-wrap: wrap;
     }
 
+    .token-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+      white-space: nowrap;
+    }
+
+    .token-chip.muted {
+      color: var(--text-muted);
+    }
+
+    .token-chip.warn {
+      color: var(--vscode-errorForeground);
+      border-color: color-mix(in srgb, var(--vscode-errorForeground) 35%, var(--border));
+    }
+
     .badge-error { color: var(--vscode-errorForeground); font-weight: bold; }
 
     .input-hex {
@@ -316,8 +387,8 @@ export function getWebviewHtml(
       background: var(--vscode-input-background);
       border: 1px solid var(--vscode-input-border);
       color: var(--vscode-input-foreground);
-      padding: 4px 8px;
-      border-radius: 4px;
+      padding: 8px 10px;
+      border-radius: 10px;
       width: 100%;
     }
 
@@ -325,14 +396,16 @@ export function getWebviewHtml(
       display: flex;
       gap: 4px;
       justify-content: flex-end;
+      flex-wrap: wrap;
+      padding-top: 2px;
     }
 
     button {
       background: var(--vscode-button-background);
       color: var(--vscode-button-foreground);
       border: none;
-      padding: 4px 10px;
-      border-radius: 4px;
+      padding: 6px 12px;
+      border-radius: 999px;
       cursor: pointer;
       font-size: 12px;
     }
@@ -347,20 +420,21 @@ export function getWebviewHtml(
 
     .grid-2 {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
+      grid-template-columns: 1fr;
+      gap: 12px;
     }
 
     .card {
       background: var(--surface-3);
       border: 1px solid var(--border);
       padding: 16px;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow);
     }
 
     .card h3 {
       margin: 0 0 8px 0;
-      font-size: 14px;
+      font-size: 15px;
     }
 
     .card p {
@@ -368,6 +442,11 @@ export function getWebviewHtml(
       color: var(--text-muted);
       margin: 0 0 16px 0;
       line-height: 1.45;
+    }
+
+    .card.primary {
+      border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+      background: color-mix(in srgb, var(--surface-3) 86%, var(--accent) 14%);
     }
 
     .card-actions,
@@ -381,19 +460,52 @@ export function getWebviewHtml(
       background: var(--surface-3);
       border: 1px solid var(--border);
       padding: 16px;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow);
     }
 
     .prompt-card h3 {
       margin: 0 0 8px 0;
-      font-size: 14px;
+      font-size: 15px;
+    }
+
+    .section-title {
+      margin: 0 0 10px;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    .section-subtitle {
+      margin: 0 0 16px;
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.6;
+      max-width: 70ch;
+    }
+
+    .workflow-section,
+    .agent-section,
+    .detected-section {
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .workflow-section,
+    .agent-section {
+      margin-bottom: 16px;
     }
 
     .prompt-code {
       display: block;
       background: var(--surface-2);
       border: 1px solid var(--border);
-      border-radius: 4px;
+      border-radius: 10px;
       padding: 10px;
       margin-bottom: 12px;
       font-family: var(--vscode-editor-font-family);
@@ -421,23 +533,29 @@ export function getWebviewHtml(
       justify-content: center;
       flex: 1;
       gap: 16px;
-      padding: 48px 24px;
+      padding: 56px 24px;
       text-align: center;
       color: var(--text-muted);
+      min-height: 360px;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      background:
+        radial-gradient(circle at top, color-mix(in srgb, var(--vscode-button-background) 12%, transparent), transparent 46%),
+        var(--surface-1);
     }
 
     .empty-state.fullpage h2 {
-      font-size: 1.1rem;
-      font-weight: 600;
+      font-size: 1.25rem;
+      font-weight: 700;
       margin: 0;
       color: var(--vscode-editor-foreground);
     }
 
     .empty-state.fullpage p {
-      font-size: 13px;
+      font-size: 14px;
       margin: 0;
-      max-width: 40ch;
-      line-height: 1.55;
+      max-width: 46ch;
+      line-height: 1.6;
     }
 
     .empty-state.fullpage .action-row {
@@ -446,6 +564,20 @@ export function getWebviewHtml(
       flex-wrap: wrap;
       justify-content: center;
       margin-top: 8px;
+    }
+
+    .empty-state.fullpage .empty-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface-3) 85%, transparent);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
     }
 
     .setup-badge {
@@ -474,42 +606,6 @@ export function getWebviewHtml(
       }
     }
 
-    @media (max-width: 760px) {
-      .app-header,
-      .summary-strip,
-      .main-layout,
-      .token-controls {
-        display: block;
-      }
-
-      .summary-strip {
-        padding-bottom: 0;
-      }
-
-      .summary-strip .stat-item {
-        margin-bottom: 12px;
-      }
-
-      .sidebar-nav {
-        width: auto;
-        border-right: 0;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .content-pane {
-        padding: 16px;
-      }
-
-      .token-row {
-        grid-template-columns: 40px 1fr;
-      }
-
-      .token-row .input-hex,
-      .token-row .actions-cell {
-        grid-column: 2;
-      }
-    }
-
     .detected-card {
       display: grid;
       grid-template-columns: 40px 1fr auto;
@@ -517,9 +613,18 @@ export function getWebviewHtml(
       gap: 12px;
       padding: 12px;
       border: 1px solid var(--border);
-      border-radius: var(--radius);
+      border-radius: var(--radius-sm);
       margin-bottom: 10px;
       background: var(--surface-3);
+      box-shadow: var(--shadow);
+    }
+
+    .detected-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
     }
 
     .detected-info {
@@ -557,6 +662,92 @@ export function getWebviewHtml(
     .badge-confidence-high { color: #22c55e; font-weight: 600; }
     .badge-confidence-medium { color: #f59e0b; font-weight: 600; }
     .badge-confidence-low { color: var(--text-muted); }
+
+    @media (max-width: 760px) {
+      .app-header,
+      .token-controls {
+        display: grid;
+      }
+
+      .app-header {
+        grid-template-columns: 1fr;
+        padding: 16px;
+      }
+
+      .title-area h1 {
+        font-size: 1.8rem;
+      }
+
+      .summary-strip {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        padding: 12px 16px;
+      }
+
+      .sidebar-nav {
+        width: 100%;
+        flex-direction: row;
+        gap: 8px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+        padding: 10px;
+      }
+
+      .nav-button {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        min-width: 120px;
+      }
+
+      .main-layout {
+        flex-direction: column;
+      }
+
+      .content-pane {
+        padding: 16px;
+      }
+
+      .token-controls {
+        position: static;
+        top: auto;
+        margin-bottom: 12px;
+        gap: 10px;
+      }
+
+      .token-row {
+        grid-template-columns: 40px minmax(0, 1fr);
+        margin-bottom: 12px;
+      }
+
+      .token-row .input-hex,
+      .token-row .actions-cell {
+        grid-column: 2 / -1;
+      }
+
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+
+      .detected-card,
+      .row {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .workflow-section,
+      .detected-section {
+        padding: 14px;
+      }
+
+      .app-header .header-actions {
+        justify-content: flex-start;
+      }
+
+      .project-state {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
@@ -564,22 +755,20 @@ export function getWebviewHtml(
     <div class="title-area">
       <h1>Color Token Manager</h1>
       <span class="workflow-pill" id="workflowPill">Colors only</span>
-      <p>Manage the token library, preview extraction safely, and expose the same knowledge to AI tools only when you want the extra help.</p>
+      <p>Open a file, preview changes, and apply only what you want.</p>
       <div class="file-info" id="filePathDisplay">No file selected</div>
       <div class="project-state" aria-label="Project state">
-        <div class="state-card"><span class="state-label">Workflow</span><div class="state-value" id="workflowState">colorsOnly</div></div>
-        <div class="state-card"><span class="state-label">Colors file</span><div class="state-value" id="colorsState">-</div></div>
-        <div class="state-card"><span class="state-label">Theme file</span><div class="state-value" id="themeState">-</div></div>
-        <div class="state-card"><span class="state-label">Theme provider</span><div class="state-value" id="themeProviderState">-</div></div>
-        <div class="state-card"><span class="state-label">Next write target</span><div class="state-value" id="nextWriteTargetState">-</div></div>
+        <div class="state-card"><span class="state-label">Mode</span><div class="state-value" id="workflowState">colorsOnly</div></div>
+        <div class="state-card"><span class="state-label">Colors</span><div class="state-value" id="colorsState">-</div></div>
+        <div class="state-card"><span class="state-label">Theme</span><div class="state-value" id="themeState">-</div></div>
       </div>
       <div class="next-step" id="nextStep">
         <strong>Next step</strong>
-        Open the manager, then preview the current file or run setup if the workspace is still unplanned.
+        Preview the current file first. If the workspace is not set up yet, run setup and come back here.
       </div>
       <div class="next-step" id="projectNotes" style="margin-top:8px;">
         <strong>What I found</strong>
-        No project notes yet.
+        No project notes yet. Setup can help the extension find the right token file faster.
       </div>
     </div>
     <div class="header-actions">
@@ -611,15 +800,15 @@ export function getWebviewHtml(
     <nav class="sidebar-nav">
       <button class="nav-button active" data-tab="tokens" type="button">
         <span>Library</span>
+        <span class="nav-hint">Tokens and edits</span>
       </button>
       <button class="nav-button" data-tab="workflows" type="button">
         <span>Workflows</span>
-      </button>
-      <button class="nav-button" data-tab="agent" type="button">
-        <span>AI Agent</span>
+        <span class="nav-hint">One click paths</span>
       </button>
       <button class="nav-button" data-tab="detected" type="button">
         <span>Detected</span>
+        <span class="nav-hint">Current file</span>
       </button>
       <div style="flex:1"></div>
       <button class="nav-button ghost" id="refresh" type="button">Refresh</button>
@@ -640,98 +829,47 @@ export function getWebviewHtml(
     </section>
 
     <section id="pane-workflows" class="content-pane">
-      <h2>Recommended Workflows</h2>
-      <div class="grid-2">
-        <div class="card">
-          <h3>Clean Active File</h3>
-          <p>Scans the current editor for hardcoded hex codes and suggests token replacements.</p>
-          <div class="card-actions">
-            <button id="workflowPreviewCurrent" type="button">Start Preview</button>
-            <button id="workflowExtractCurrent" class="ghost" type="button">Extract Now</button>
+      <div class="workflow-section">
+        <div class="section-title">Workflows</div>
+        <p class="section-subtitle">Start with the most common path first. Each card is a direct action.</p>
+        <div class="grid-2">
+          <div class="card primary">
+            <h3>Preview Current File</h3>
+            <p>See suggested token changes before anything is applied.</p>
+            <div class="card-actions">
+              <button id="workflowPreviewCurrent" type="button">Preview</button>
+              <button id="workflowExtractCurrent" class="ghost" type="button">Apply After Preview</button>
+            </div>
           </div>
-        </div>
-        <div class="card">
-          <h3>Folder Extraction</h3>
-          <p>Audit an entire directory to find common colors that should be tokens.</p>
-          <div class="card-actions">
-            <button id="workflowPreviewFolder" type="button">Batch Scan</button>
-            <button id="workflowExtractFolder" class="ghost" type="button">Extract Folder</button>
+          <div class="card">
+            <h3>Folder Scan</h3>
+            <p>Check a folder for colors that should become tokens.</p>
+            <div class="card-actions">
+              <button id="workflowPreviewFolder" type="button">Scan Folder</button>
+              <button id="workflowExtractFolder" class="ghost" type="button">Extract</button>
+            </div>
           </div>
-        </div>
-        <div class="card">
-          <h3>Selection Preview</h3>
-          <p>Preview only the current selection when you want a smaller and safer refactor scope.</p>
-          <div class="card-actions">
-            <button id="workflowPreviewSelection" type="button">Preview Selection</button>
-          </div>
-        </div>
-        <div class="card">
-          <h3>Token Maintenance</h3>
-          <p>Audit theme readiness, find unused tokens, rename paths safely, or export your current palette in multiple formats.</p>
-          <div class="card-actions">
-            <button id="workflowAudit" type="button">Audit Tokens</button>
-            <button id="workflowUnused" class="ghost" type="button">Find Unused</button>
-            <button id="exportTokensWorkflow" class="ghost" type="button">Export...</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="pane-agent" class="content-pane">
-      <h2>AI Agent Setup (MCP)</h2>
-      <p class="status-line">Enable Model Context Protocol to let AI tools like Cursor, Codex, Claude Code, or Windsurf understand your design system through the extension.</p>
-      <div class="card" style="margin-bottom: 16px;">
-        <h3>Client Configuration</h3>
-        <div class="card-actions">
-          <button id="connectAiAgent" type="button">Connect AI Agent</button>
-          <button id="copyMcpClientConfig" class="ghost" type="button">Copy JSON</button>
-        </div>
-      </div>
-      <div class="card" style="margin-bottom: 16px;">
-        <h3>Server Status</h3>
-        <div id="mcpStatus" class="status-line">Server is idle</div>
-        <div class="card-actions">
-          <button id="testMcpServer" type="button">Test MCP</button>
-          <button id="startMcpServer" class="ghost" type="button">Start MCP Server</button>
-          <button id="showMcpOutput" class="ghost" type="button">Show Logs</button>
-        </div>
-      </div>
-      <div class="grid-2">
-        <div class="prompt-card">
-          <h3>Find unused tokens</h3>
-          <code class="prompt-code">Use color-token-manager to read colors://tokens/unused and summarize which tokens look safe to remove.</code>
-          <div class="prompt-actions">
-            <button class="ghost" data-copy-prompt="Use color-token-manager to read colors://tokens/unused and summarize which tokens look safe to remove." type="button">Copy Prompt</button>
-          </div>
-        </div>
-        <div class="prompt-card">
-          <h3>Audit contrast</h3>
-          <code class="prompt-code">Use color-token-manager to read colors://tokens/flat, pick one text-like token and one background-like token, then run get_contrast with dryRun true.</code>
-          <div class="prompt-actions">
-            <button class="ghost" data-copy-prompt="Use color-token-manager to read colors://tokens/flat, pick one text-like token and one background-like token, then run get_contrast with dryRun true." type="button">Copy Prompt</button>
-          </div>
-        </div>
-        <div class="prompt-card">
-          <h3>Preview extraction for this file</h3>
-          <code class="prompt-code">Use color-token-manager extract_from_file with dryRun true for the current file and summarize the suggested token replacements.</code>
-          <div class="prompt-actions">
-            <button class="ghost" data-copy-prompt="Use color-token-manager extract_from_file with dryRun true for the current file and summarize the suggested token replacements." type="button">Copy Prompt</button>
-          </div>
-        </div>
-        <div class="prompt-card">
-          <h3>Export Tailwind config</h3>
-          <code class="prompt-code">Use color-token-manager to read colors://exports/tailwind and explain how to wire the exported colors into Tailwind.</code>
-          <div class="prompt-actions">
-            <button class="ghost" data-copy-prompt="Use color-token-manager to read colors://exports/tailwind and explain how to wire the exported colors into Tailwind." type="button">Copy Prompt</button>
+          <div class="card">
+            <h3>Selection Only</h3>
+            <p>Preview only the highlighted code when you want a smaller change.</p>
+            <div class="card-actions">
+              <button id="workflowPreviewSelection" type="button">Preview Selection</button>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
     <section id="pane-detected" class="content-pane">
-      <h2>Detected Hardcoded Colors</h2>
-      <p class="status-line">Colors found in the active editor file, grouped by value with suggested token names.</p>
-      <div id="detectedGroups"></div>
+      <div class="detected-section">
+        <div class="detected-header-row">
+          <div>
+            <div class="section-title">Detected Hardcoded Colors</div>
+            <p class="section-subtitle">Colors found in the active editor file, grouped by value with suggested token names.</p>
+          </div>
+        </div>
+        <div id="detectedGroups"></div>
+      </div>
     </section>
   </main>
 
@@ -760,12 +898,6 @@ export function getWebviewHtml(
       workflowAudit: 'auditDesignTokens',
       workflowUnused: 'findUnusedTokens',
       exportTokensWorkflow: 'exportTokens',
-      connectAiAgent: 'connectAiAgent',
-      installCursorMcpConfig: 'installCursorMcpConfig',
-      copyMcpClientConfig: 'copyMcpClientConfig',
-      testMcpServer: 'testMcpServer',
-      startMcpServer: 'startMcpServer',
-      showMcpOutput: 'showMcpOutput',
     };
 
     Object.entries(actionMap).forEach(([id, type]) => {
@@ -823,8 +955,9 @@ export function getWebviewHtml(
               : 'colors file';
           container.innerHTML =
             '<div class="empty-state fullpage">' +
+              '<span class="empty-kicker">Getting Started</span>' +
               '<h2>No ' + workflowText + ' found</h2>' +
-              '<p>Set up your ' + workflowText + ' first, or open a source file to preview hardcoded colors.</p>' +
+              '<p>Set up your ' + workflowText + ' first, or open a source file to preview hardcoded colors and build tokens from real usage.</p>' +
               '<div class="action-row">' +
                 '<button onclick="vscode.postMessage({type:&apos;setup&apos;})">Start Setup</button>' +
                 '<button class="ghost" onclick="vscode.postMessage({type:&apos;detectSetup&apos;})">Detect Automatically</button>' +
@@ -991,7 +1124,12 @@ export function getWebviewHtml(
 
         const header = document.createElement('div');
         header.className = 'group-header';
-        header.textContent = groupName;
+        const groupTitle = document.createElement('span');
+        groupTitle.textContent = groupName;
+        const groupCount = document.createElement('span');
+        groupCount.className = 'badge';
+        groupCount.textContent = String(groups[groupName].length) + ' token' + (groups[groupName].length === 1 ? '' : 's');
+        header.append(groupTitle, groupCount);
         groupSection.appendChild(header);
 
         groups[groupName].forEach((color) => {
@@ -1028,18 +1166,20 @@ export function getWebviewHtml(
           metaDiv.className = 'token-meta';
 
           const typeSpan = document.createElement('span');
+          typeSpan.className = 'token-chip muted';
           typeSpan.textContent = color.type;
           metaDiv.appendChild(typeSpan);
 
           if (color.aliasOf) {
             const aliasSpan = document.createElement('span');
+            aliasSpan.className = 'token-chip';
             aliasSpan.textContent = 'alias of ' + color.aliasOf;
             metaDiv.appendChild(aliasSpan);
           }
 
           if (color.duplicateOf) {
             const duplicateSpan = document.createElement('span');
-            duplicateSpan.className = 'badge-error';
+            duplicateSpan.className = 'token-chip warn';
             duplicateSpan.textContent = 'duplicate of ' + color.duplicateOf;
             metaDiv.appendChild(duplicateSpan);
           }
@@ -1051,6 +1191,7 @@ export function getWebviewHtml(
           input.className = 'input-hex';
           input.value = color.value;
           input.setAttribute('aria-label', color.key + ' color value');
+          input.title = 'Edit the token value';
 
           const actionsCell = document.createElement('div');
           actionsCell.className = 'actions-cell';
@@ -1073,6 +1214,7 @@ export function getWebviewHtml(
           const copyBtn = document.createElement('button');
           copyBtn.textContent = 'Hex';
           copyBtn.className = 'ghost';
+          copyBtn.title = 'Copy the current hex value';
           copyBtn.addEventListener('click', () => {
             vscode.postMessage({ type: 'copyColor', value: input.value.trim() });
             setStatus('Copied: ' + input.value.trim());

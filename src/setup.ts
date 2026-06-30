@@ -40,16 +40,30 @@ export async function runSetupWizard(contextUri?: vscode.Uri): Promise<vscode.Ur
     throw new Error('Open a workspace before setting up Color Token Manager.');
   }
 
-  const selection = await chooseSetup(workspaceFolder, contextUri);
-  if (!selection) {
-    return undefined;
-  }
+  return vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: 'Setting up Color Token Manager',
+      cancellable: false,
+    },
+    async (progress) => {
+      progress.report({ message: 'Finding token files', increment: 10 });
+      const selection = await chooseSetup(workspaceFolder, contextUri);
+      if (!selection) {
+        return undefined;
+      }
 
-  const tokenPathMode = selection.tokenPathMode ?? (await chooseTokenPathMode(selection.uri));
-  const workflow = selection.workflow ?? (await chooseWorkflow());
-  await rememberSetup(selection.uri, tokenPathMode, selection.themeStyle, workflow);
+      progress.report({ message: 'Choosing token style', increment: 35 });
+      const tokenPathMode = selection.tokenPathMode ?? (await chooseTokenPathMode(selection.uri));
+      const workflow = selection.workflow ?? (await chooseWorkflow());
 
-  return selection.uri;
+      progress.report({ message: 'Saving workspace settings', increment: 35 });
+      await rememberSetup(selection.uri, tokenPathMode, selection.themeStyle, workflow);
+
+      progress.report({ message: 'Setup complete', increment: 20 });
+      return selection.uri;
+    },
+  );
 }
 
 async function chooseSetup(
@@ -128,49 +142,49 @@ function buildSetupChoices(
   return [
     {
       label: '$(symbol-color) Colors only',
-      description: 'Simple color tokens',
-      detail: 'Use one colors file for quick extraction and cleanup.',
+      description: 'One simple file',
+      detail: 'Use one colors file for tokens and cleanup.',
       choice: { kind: 'workflow' as const, workflow: 'colorsOnly' as const },
     },
     {
       label: '$(paintcan) Theme only',
-      description: 'Semantic theme tokens',
+      description: 'One theme file',
       detail: 'Use one theme file for background, text, and surface roles.',
       choice: { kind: 'workflow' as const, workflow: 'themeOnly' as const },
     },
     {
       label: '$(layers) Colors + Theme',
-      description: 'Separate files',
-      detail: 'Use both files when colors and theme live apart.',
+      description: 'Two linked files',
+      detail: 'Use this when colors and theme live separately.',
       choice: { kind: 'workflow' as const, workflow: 'both' as const },
     },
     ...existing,
     {
       label: '$(star-full) Color scale',
-      description: `Creates ${DEFAULT_COLORS_PATH} with primary, neutral, and success scales`,
-      detail: 'Good for React, Next.js, and UI libraries.',
+      description: `Create ${DEFAULT_COLORS_PATH}`,
+      detail: 'Creates a scale-based colors file.',
       choice: { kind: 'createStyle' as const, style: 'colorSeries' as const },
     },
     {
       label: '$(split-horizontal) Light / dark',
-      description: `Creates ${DEFAULT_THEME_PATH} with lightTheme and darkTheme`,
-      detail: 'Good for apps with a classic two-theme setup.',
+      description: `Create ${DEFAULT_THEME_PATH}`,
+      detail: 'Creates a light and dark theme file.',
       choice: { kind: 'createStyle' as const, style: 'lightDark' as const },
     },
     {
       label: '$(device-mobile) React Native',
-      description: `Creates ${DEFAULT_THEME_PATH} with a nested theme object`,
-      detail: 'Good for mobile apps using theme objects.',
+      description: `Create ${DEFAULT_THEME_PATH}`,
+      detail: 'Creates a nested theme object.',
       choice: { kind: 'createStyle' as const, style: 'reactNative' as const },
     },
     {
       label: '$(edit) Custom path…',
-      description: 'Create a file wherever you want',
+      description: 'Choose your own path',
       choice: { kind: 'createCustom' as const },
     },
     {
       label: '$(folder-opened) Browse existing file…',
-      description: 'Choose an existing colors or theme file',
+      description: 'Pick an existing file',
       choice: { kind: 'browse' as const },
     },
   ];
@@ -179,24 +193,24 @@ function buildSetupChoices(
 async function chooseWorkflow(): Promise<SetupWorkflow> {
   const selected = await vscode.window.showQuickPick(
     [
-      {
-        label: 'Colors only',
-        description: 'Simple tokens',
-        detail: 'One colors file for extraction and cleanup.',
-        workflow: 'colorsOnly' as const,
-      },
-      {
-        label: 'Theme only',
-        description: 'Semantic roles',
-        detail: 'One theme file for background, text, and surface.',
-        workflow: 'themeOnly' as const,
-      },
-      {
-        label: 'Colors + Theme',
-        description: 'Separate files',
-        detail: 'Use both when colors and theme live apart.',
-        workflow: 'both' as const,
-      },
+    {
+      label: 'Colors only',
+      description: 'One simple file',
+      detail: 'Use one colors file for extraction and cleanup.',
+      workflow: 'colorsOnly' as const,
+    },
+    {
+      label: 'Theme only',
+      description: 'One theme file',
+      detail: 'Use one theme file for background, text, and surface.',
+      workflow: 'themeOnly' as const,
+    },
+    {
+      label: 'Colors + Theme',
+      description: 'Two linked files',
+      detail: 'Use both when colors and theme live apart.',
+      workflow: 'both' as const,
+    },
     ],
     {
       title: 'Choose Workflow',
@@ -268,7 +282,9 @@ async function createTemplateFile(
 ): Promise<ColorsFileSelection | undefined> {
   const tokenPathMode: TokenPathMode = themeStyle === 'colorSeries' ? 'nested' : 'auto';
   await createColorsFile(fileUri, templateMode);
-  vscode.window.showInformationMessage(`Created ${vscode.workspace.asRelativePath(fileUri)}.`);
+  vscode.window.showInformationMessage(
+    `Created ${vscode.workspace.asRelativePath(fileUri)} and saved the workspace setup.`,
+  );
   return {
     uri: fileUri,
     tokenPathMode,
@@ -300,7 +316,9 @@ async function createAtCustomPath(
     ? vscode.Uri.file(customPath)
     : vscode.Uri.joinPath(workspaceFolder.uri, ...customPath.trim().split('/'));
   await createColorsFile(fileUri, templateMode);
-  vscode.window.showInformationMessage(`Created ${vscode.workspace.asRelativePath(fileUri)}.`);
+  vscode.window.showInformationMessage(
+    `Created ${vscode.workspace.asRelativePath(fileUri)} and saved the workspace setup.`,
+  );
   return { uri: fileUri, tokenPathMode, workflow: 'colorsOnly' };
 }
 
@@ -325,7 +343,7 @@ async function chooseTokenPathMode(colorsFileUri?: vscode.Uri): Promise<TokenPat
         label: 'Auto',
         description: 'Recommended',
         detail:
-          'Match the current colors.ts shape: flat projects stay flat, nested projects stay nested.',
+          'Match the current token shape automatically so flat projects stay flat and nested projects stay nested.',
         mode: 'auto' as const,
       },
       {
@@ -342,7 +360,7 @@ async function chooseTokenPathMode(colorsFileUri?: vscode.Uri): Promise<TokenPat
       },
     ],
     {
-      placeHolder: 'How should token references be generated?',
+      placeHolder: 'How should token references be generated for this workspace?',
       title: 'Choose Token Style',
     },
   );
@@ -370,6 +388,7 @@ async function rememberSetup(
   const relativePath = path.relative(folder.uri.fsPath, colorsFileUri.fsPath).replace(/\\/g, '/');
   const configuration = vscode.workspace.getConfiguration('colorTokenManager', folder.uri);
   const tokenExportName = await inferTokenExportName(colorsFileUri);
+  const tokenObject = tokenExportName === 'auto' ? undefined : tokenExportName;
 
   // Derive referencePrefix from the export name
   const referencePrefix = tokenExportName === 'auto' ? 'colors' : tokenExportName;
@@ -387,6 +406,7 @@ async function rememberSetup(
     tokenExportName,
     vscode.ConfigurationTarget.Workspace,
   );
+  await configuration.update('tokenObject', tokenObject, vscode.ConfigurationTarget.Workspace);
   await configuration.update(
     'referencePrefix',
     referencePrefix,

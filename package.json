@@ -2,7 +2,7 @@
   "name": "color-token-manager",
   "displayName": "Color Token Manager",
   "description": "Extract hardcoded colors into tokens, manage colors.ts, preview refactors, WCAG contrast checks, and export design tokens for React Native and TypeScript.",
-  "version": "0.3.4",
+  "version": "0.4.1",
   "publisher": "dagmayalew",
   "license": "MIT",
   "pricing": "Free",
@@ -236,6 +236,10 @@
       ],
       "editor/context": [
         {
+          "command": "colorTokenManager.setup",
+          "group": "navigation@49"
+        },
+        {
           "command": "colorTokenManager.previewFromSelection",
           "when": "editorHasSelection && (editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == vue || editorLangId == css || editorLangId == scss || editorLangId == less)",
           "group": "navigation@50"
@@ -252,6 +256,11 @@
         }
       ],
       "explorer/context": [
+        {
+          "command": "colorTokenManager.openHealthDashboard",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@49"
+        },
         {
           "command": "colorTokenManager.previewFromFolder",
           "when": "explorerResourceIsFolder",
@@ -512,7 +521,7 @@
             "default"
           ],
           "default": "named",
-          "description": "Deprecated. Use colorTokenManager.importMode instead. Removed in v1.0.0.",
+          "description": "Deprecated. Use colorTokenManager.importMode instead.",
           "deprecationMessage": "Use colorTokenManager.importMode instead. This setting will be removed in v1.0.0."
         },
         "colorTokenManager.importMode": {
@@ -523,22 +532,22 @@
             "namespace"
           ],
           "default": "named",
-          "description": "Controls generated import syntax for colors."
+          "description": "Controls generated import syntax for colors. Use named for `import { colors }`, default for default imports, and namespace for `import * as colors`."
         },
         "colorTokenManager.importIdentifier": {
           "type": "string",
           "default": "colors",
-          "description": "Identifier to use for inserted color references and imports."
+          "description": "Identifier used when inserting color references and imports. This is the visible symbol used in generated code."
         },
         "colorTokenManager.referencePrefix": {
           "type": "string",
           "default": "",
-          "description": "Prefix used when generating replacement references in code (e.g., colors, theme.colors, tokens.color). Defaults to the tokenObject or importIdentifier value."
+          "description": "Prefix used when generating replacement references in code, such as `colors`, `theme.colors`, or `tokens.color`. Defaults to tokenObject or importIdentifier."
         },
         "colorTokenManager.extractEmbeddedColors": {
           "type": "boolean",
           "default": false,
-          "description": "When true, also extract colors embedded inside longer quoted CSS-like strings such as boxShadow: '0 0 4px #000'."
+          "description": "When true, also extract colors embedded inside longer quoted CSS-like strings, such as `boxShadow: '0 0 4px #000'`."
         }
       }
     }

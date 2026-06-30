@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.4.1 — Webview Redesign Release
+
+### Breaking
+
+- Refreshed the webview UI layout and styling across the main manager, preview, and results panels. This changes the visual structure of the extension and may affect screenshots, extension documentation, and any UI-specific expectations.
+
+### Added
+
+- Stronger dashboard-style hierarchy in the main manager webview.
+- Cleaner onboarding and empty-state presentation when no token file is loaded.
+- Unified card-based visual language across preview and results webviews.
+- More compact sidebar navigation hints and improved section grouping.
+
+### Changed
+
+- Reworked token groups into card-like sections with counts and richer metadata chips.
+- Improved spacing, panel framing, and responsive behavior for narrow windows.
+- Simplified header copy and improved scanability across all webviews.
+
+### Fixed
+
+- Reduced visual clutter in dense token lists and workflow panels.
+- Improved mobile navigation behavior and empty-state readability.
+
+## v0.3.5 — Trust & Polish Release
+
+### Added
+
+- Clearer migration guidance for deprecated settings.
+- Progress indicators for setup and workspace preparation.
+- More explicit output-channel logging for MCP setup and connection flows.
+
+### Changed
+
+- Updated package version and release docs to reflect the current `0.3.5` line.
+- Improved settings descriptions to explain import modes, identifier behavior, and embedded color extraction more clearly.
+- Polished setup wizard prompts and completion messages.
+- Improved command messaging for setup, audit, and post-setup actions.
+
+### Fixed
+
+- Richer error messages for missing workspace and configuration cases.
+- Better audit failure guidance when no token file is configured or detected.
+
 ## v0.4.0 — Multi-Language Foundation
 
 ### Added
@@ -71,7 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Deprecated
 
-- `colorTokenManager.importStyle` — use `importMode` instead; one-time activation warning; Settings UI `deprecationMessage`; removal planned for **v1.0.0** ([DEPRECATIONS.md](DEPRECATIONS.md)).
+- `colorTokenManager.importStyle` — use `importMode` instead; one-time activation warning; Settings UI `deprecationMessage`; removal planned for **v1.0.0**.
 
 ### Fixed
 
@@ -86,12 +130,12 @@ Documentation and Marketplace metadata only; no change to extension runtime beha
 
 ### Added
 
-- [CHANGELOG.md](CHANGELOG.md) and [VERSIONING.md](VERSIONING.md).
+- [CHANGELOG.md](CHANGELOG.md).
 
 ### Changed
 
 - README: contributor links, accurate bundle vs VSIX size notes.
-- PROJECT_SUMMARY.md: maintainer-only guide; corrected packaging sizes and publish steps.
+- Maintainer docs and packaging notes cleanup.
 - Marketplace metadata: `homepage`, `bugs`, `galleryBanner`, `qna`, expanded keywords, `Linters` category, clearer description.
 
 ## [0.0.1] - 2026-06-04

@@ -390,14 +390,16 @@ export function activate(context: vscode.ExtensionContext): void {
         }
 
         const config = vscode.workspace.getConfiguration('colorTokenManager', workspaceFolder.uri);
+        const tokenExportName = selected.candidate.exportNames[0] ?? 'auto';
         await config.update(
           'tokenFile',
           selected.candidate.filePath,
           vscode.ConfigurationTarget.Workspace,
         );
+        await config.update('tokenExportName', tokenExportName, vscode.ConfigurationTarget.Workspace);
         await config.update(
-          'tokenExportName',
-          selected.candidate.exportNames[0] ?? 'auto',
+          'tokenObject',
+          tokenExportName === 'auto' ? undefined : tokenExportName,
           vscode.ConfigurationTarget.Workspace,
         );
         await config.update(
@@ -779,7 +781,17 @@ async function handleSetup(
   contextUri = vscode.window.activeTextEditor?.document.uri,
   showNextAction = true,
 ): Promise<vscode.Uri | undefined> {
-  const fileUri = await runSetupWizard(contextUri);
+  const fileUri = await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: 'Preparing setup',
+      cancellable: false,
+    },
+    async (progress) => {
+      progress.report({ message: 'Opening setup wizard', increment: 10 });
+      return runSetupWizard(contextUri);
+    },
+  );
   if (!fileUri) {
     return undefined;
   }
@@ -790,7 +802,7 @@ async function handleSetup(
 
   if (showNextAction) {
     const action = await vscode.window.showInformationMessage(
-      'Color Token Manager is ready.',
+      'Color Token Manager is ready. What would you like to do next?',
       'Open Manager',
       'Preview Current File',
     );
@@ -1049,6 +1061,7 @@ function startMcpServer(): void {
   }
 
   mcpServer.start();
+  mcpOutput.appendLine('MCP output channel opened.');
   mcpStatusBarItem?.show();
 }
 
@@ -1225,9 +1238,11 @@ async function installMcpConfigFile(
     configUri,
     Buffer.from(`${JSON.stringify(next, null, 2)}\n`, 'utf8'),
   );
+  mcpOutput?.appendLine(`Installed ${clientName} MCP config at ${targetLabel}.`);
 }
 
 async function showAgentConnectedMessage(clientName: string): Promise<void> {
+  mcpOutput?.appendLine(`${clientName} MCP connection configured.`);
   void vscode.window.showInformationMessage(
     `${clientName} is configured for Color Token Manager. Reloading this window now. After VS Code reloads, restart ${clientName} and ask it to read colors://help.`,
   );
@@ -1274,6 +1289,7 @@ async function getMcpConfigContext(): Promise<{
 
 function showMcpOutput(): void {
   startMcpServer();
+  mcpOutput?.appendLine('Showing MCP logs.');
   mcpOutput?.show();
 }
 
@@ -1286,7 +1302,7 @@ async function showThemeAudit(focus: 'all' | 'contrast'): Promise<void> {
       : await getConfiguredColorsFile(contextUri)) ??
     (await getConfiguredThemeFile(contextUri));
   if (!colorsFileUri) {
-    return;
+    throw new Error('No colors or theme file is configured or detected. Run Set Up Color Token Manager first.');
   }
 
   const report = await buildThemeAuditReport(colorsFileUri);
@@ -1659,6 +1675,23 @@ function postStatus(message: string): void {
 }
 
 function showError(error: unknown): void {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = formatErrorMessage(error);
   vscode.window.showErrorMessage(message);
+}
+
+function formatErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const message = error.message.trim();
+    if (/workspace/i.test(message) && /open/i.test(message)) {
+      return `${message} Open a folder or trust the current workspace, then try again.`;
+    }
+
+    if (/not found|missing|could not|couldn't|cannot find/i.test(message)) {
+      return `${message} Check the configured token file paths in Settings or run Set Up Color Token Manager.`;
+    }
+
+    return message;
+  }
+
+  return String(error);
 }

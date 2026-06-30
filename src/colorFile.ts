@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { type AppColor } from './types';
+import { detectExportNames } from './tokenDetection';
 import {
   getProjectWorkflow,
   pickProjectFile,
@@ -16,6 +17,7 @@ const SUPPORTED_TOKEN_EXPORT_NAMES = [
   'themes',
   'tokens',
   'designTokens',
+  'themeColors',
 ] as const;
 
 type ParsedObject = {
@@ -444,6 +446,14 @@ function getTokenSourceObject(text: string, context?: vscode.Uri): TokenSourceOb
     );
   }
 
+  const detectedExports = detectExportNames(text);
+  for (const exportName of detectedExports) {
+    const source = getObjectForDeclaration(text, exportName);
+    if (source) {
+      return source;
+    }
+  }
+
   for (const exportName of SUPPORTED_TOKEN_EXPORT_NAMES) {
     const source = getObjectForDeclaration(text, exportName);
     if (source) {
@@ -451,8 +461,13 @@ function getTokenSourceObject(text: string, context?: vscode.Uri): TokenSourceOb
     }
   }
 
+  const fallbackExport = getObjectForAnyObjectLiteral(text);
+  if (fallbackExport) {
+    return fallbackExport;
+  }
+
   throw new Error(
-    'Could not find a supported token object. Expected a variable named colors, theme, themes, tokens, or designTokens.',
+    'Could not find a supported token object. Export an object like colors, theme, themeColors, themes, tokens, or designTokens.',
   );
 }
 
@@ -471,6 +486,22 @@ function getObjectForDeclaration(text: string, exportName: string): TokenSourceO
     throw new Error(
       `The "${exportName}" declaration must be initialized with an object literal, for example: export const ${exportName} = { colors: { primary: "#FF6B00" } };`,
     );
+  }
+
+  return { exportName, object: parseObject(text, objectStart) };
+}
+
+function getObjectForAnyObjectLiteral(text: string): TokenSourceObject | undefined {
+  const declaration = /\b(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\b/g.exec(text);
+  if (!declaration) {
+    return undefined;
+  }
+
+  const exportName = declaration[1];
+  const equals = findAssignmentEquals(text, declaration.index + declaration[0].length);
+  const objectStart = equals === -1 ? -1 : findNextObjectLiteralStart(text, equals + 1);
+  if (objectStart === -1) {
+    return undefined;
   }
 
   return { exportName, object: parseObject(text, objectStart) };

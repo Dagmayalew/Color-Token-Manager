@@ -12,27 +12,53 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
   <title>Color Extraction Preview</title>
   <style>
+    :root {
+      --bg: linear-gradient(180deg, color-mix(in srgb, var(--vscode-editor-background) 92%, #0f172a 8%), var(--vscode-editor-background));
+      --panel: color-mix(in srgb, var(--vscode-sideBar-background) 88%, transparent);
+      --panel-2: var(--vscode-editorWidget-background);
+      --border: color-mix(in srgb, var(--vscode-panel-border) 70%, transparent);
+      --radius: 12px;
+      --radius-sm: 10px;
+      --shadow: 0 12px 30px color-mix(in srgb, black 14%, transparent);
+      --muted: var(--vscode-descriptionForeground);
+    }
+
+    * { box-sizing: border-box; }
+
     body {
-      background: var(--vscode-editor-background);
+      background: var(--bg);
       color: var(--vscode-editor-foreground);
       font-family: var(--vscode-font-family);
       font-size: var(--vscode-font-size);
       margin: 0;
-      padding: 24px;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .shell {
+      max-width: 1440px;
+      margin: 0 auto;
+      display: grid;
+      gap: 16px;
     }
 
     header {
       align-items: flex-start;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
       display: flex;
       gap: 16px;
       justify-content: space-between;
-      margin-bottom: 20px;
     }
 
     h1 {
-      font-size: 24px;
-      font-weight: 600;
+      font-size: clamp(22px, 2vw, 30px);
+      font-weight: 650;
       margin: 0 0 8px;
+      letter-spacing: -0.02em;
     }
 
     h2 {
@@ -48,11 +74,12 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
     button {
       background: var(--vscode-button-background);
       border: 0;
+      border-radius: 999px;
       color: var(--vscode-button-foreground);
       cursor: pointer;
       font: inherit;
       min-height: 30px;
-      padding: 4px 12px;
+      padding: 5px 14px;
     }
 
     button:hover {
@@ -84,20 +111,24 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
     }
 
     .meta {
-      color: var(--vscode-descriptionForeground);
+      color: var(--muted);
       overflow-wrap: anywhere;
+      font-size: 12px;
+      line-height: 1.5;
     }
 
     .summary {
       display: grid;
-      gap: 8px;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      margin-bottom: 12px;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     }
 
     .metric {
-      border: 1px solid var(--vscode-panel-border);
-      padding: 10px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      box-shadow: 0 1px 0 color-mix(in srgb, white 4%, transparent) inset;
     }
 
     .metric strong {
@@ -107,13 +138,20 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
     }
 
     .file {
-      border: 1px solid var(--vscode-panel-border);
-      margin-bottom: 12px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
     }
 
     .language-group {
-      border: 1px solid var(--vscode-panel-border);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       margin-bottom: 16px;
+      overflow: hidden;
+      background: var(--panel);
+      box-shadow: var(--shadow);
     }
 
     .language-group[hidden] {
@@ -122,13 +160,13 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
 
     .language-header {
       align-items: center;
-      background: var(--vscode-editorWidget-background);
-      border-bottom: 1px solid var(--vscode-panel-border);
+      background: color-mix(in srgb, var(--panel-2) 80%, transparent);
+      border-bottom: 1px solid var(--border);
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       justify-content: space-between;
-      padding: 10px;
+      padding: 12px 14px;
     }
 
     .language-title,
@@ -150,22 +188,22 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
 
     .file-header {
       align-items: center;
-      border-bottom: 1px solid var(--vscode-panel-border);
+      border-bottom: 1px solid var(--border);
       display: flex;
       gap: 8px;
       font-weight: 600;
-      padding: 10px;
+      padding: 12px 14px;
       overflow-wrap: anywhere;
     }
 
     .row {
       align-items: center;
-      border-bottom: 1px solid var(--vscode-panel-border);
+      border-bottom: 1px solid var(--border);
       cursor: pointer;
       display: grid;
-      gap: 10px;
+      gap: 12px;
       grid-template-columns: 24px 68px minmax(120px, 0.7fr) minmax(220px, 1.2fr) minmax(136px, 0.8fr) auto;
-      padding: 8px 10px;
+      padding: 12px 14px;
     }
 
     .row:hover {
@@ -175,6 +213,7 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
     input[type="text"] {
       background: var(--vscode-input-background);
       border: 1px solid var(--vscode-input-border);
+      border-radius: 10px;
       color: var(--vscode-input-foreground);
       font: inherit;
       min-height: 28px;
@@ -197,9 +236,10 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
       background: var(--vscode-badge-background);
       color: var(--vscode-badge-foreground);
       font-size: 11px;
-      padding: 3px 6px;
+      padding: 4px 8px;
       text-transform: uppercase;
       width: fit-content;
+      border-radius: 999px;
     }
 
     .badge.add {
@@ -224,13 +264,16 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
 
     .preview-toolbar {
       align-items: center;
-      border: 1px solid var(--vscode-panel-border);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       justify-content: space-between;
       margin-bottom: 12px;
-      padding: 10px;
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
     }
 
     .filter-group,
@@ -243,7 +286,7 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
 
     .toolbar-label,
     .cell-label {
-      color: var(--vscode-descriptionForeground);
+      color: var(--muted);
       font-size: 11px;
       text-transform: uppercase;
     }
@@ -258,10 +301,13 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
     }
 
     .empty {
-      border: 1px solid var(--vscode-panel-border);
-      color: var(--vscode-descriptionForeground);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--muted);
       padding: 24px;
       text-align: center;
+      box-shadow: var(--shadow);
     }
 
     .empty strong {
@@ -277,7 +323,7 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
     }
 
     .status {
-      color: var(--vscode-descriptionForeground);
+      color: var(--muted);
       min-height: 20px;
     }
 
@@ -298,7 +344,7 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
     }
 
     .swatch {
-      border: 1px solid var(--vscode-panel-border);
+      border: 1px solid var(--border);
       box-sizing: border-box;
       flex: 0 0 auto;
       height: 18px;
@@ -312,41 +358,53 @@ export function getPreviewWebviewHtml(preview: FolderExtractionPreview): string 
     }
 
     .token-preview {
-      color: var(--vscode-descriptionForeground);
+      color: var(--muted);
       width: fit-content;
+    }
+
+    @media (max-width: 760px) {
+      body { padding: 12px; }
+      header { flex-direction: column; }
+      .summary { grid-template-columns: 1fr 1fr; }
+      .row { grid-template-columns: 24px 1fr; }
+      .row > * { min-width: 0; }
+      .preview-toolbar,
+      .status-row { align-items: stretch; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1>Color Extraction Preview</h1>
-      <div class="meta" id="folder"></div>
-      <div class="meta" id="colorsFile"></div>
-    </div>
-    <button id="apply" type="button">Apply Changes</button>
-  </header>
+  <div class="shell">
+    <header>
+      <div>
+        <h1>Color Extraction Preview</h1>
+        <div class="meta" id="folder"></div>
+        <div class="meta" id="colorsFile"></div>
+      </div>
+      <button id="apply" type="button">Apply Changes</button>
+    </header>
 
-  <section class="summary" id="summary"></section>
-  <section class="preview-toolbar" aria-label="Preview controls">
-    <div class="filter-group" id="filters">
-      <span class="toolbar-label">Show</span>
-      <button class="secondary active" data-filter="all" type="button">All</button>
-      <button class="secondary" data-filter="add" type="button">New</button>
-      <button class="secondary" data-filter="alias" type="button">Aliases</button>
-      <button class="secondary" data-filter="reuse" type="button">Reused</button>
-      <button class="secondary" data-filter="skip" type="button">Skipped</button>
+    <section class="summary" id="summary"></section>
+    <section class="preview-toolbar" aria-label="Preview controls">
+      <div class="filter-group" id="filters">
+        <span class="toolbar-label">Show</span>
+        <button class="secondary active" data-filter="all" type="button">All</button>
+        <button class="secondary" data-filter="add" type="button">New</button>
+        <button class="secondary" data-filter="alias" type="button">Aliases</button>
+        <button class="secondary" data-filter="reuse" type="button">Reused</button>
+        <button class="secondary" data-filter="skip" type="button">Skipped</button>
+      </div>
+      <div class="selection-actions">
+        <button class="secondary" id="selectVisible" type="button">Select Visible</button>
+        <button class="secondary" id="deselectVisible" type="button">Deselect Visible</button>
+      </div>
+    </section>
+    <div class="status-row">
+      <div class="status" id="status"></div>
+      <div class="meta" id="selectionSummary"></div>
     </div>
-    <div class="selection-actions">
-      <button class="secondary" id="selectVisible" type="button">Select Visible</button>
-      <button class="secondary" id="deselectVisible" type="button">Deselect Visible</button>
-    </div>
-  </section>
-  <div class="status-row">
-    <div class="status" id="status"></div>
-    <div class="meta" id="selectionSummary"></div>
+    <main id="files"></main>
   </div>
-  <main id="files"></main>
 
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();

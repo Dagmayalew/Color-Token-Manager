@@ -121,6 +121,41 @@ test('readColors parses theme export token files', async () => {
   assert.equal(colors.find((color) => color.key === 'colors.light.text.primary')?.value, '#111111');
 });
 
+test('readColors parses custom themeColors exports', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-'));
+  tempDirs.push(dir);
+  const filePath = path.join(dir, 'themeColors.tsx');
+  fs.writeFileSync(
+    filePath,
+    `import { Colors } from '../style';
+export const themeColors = {
+  light: {
+    text: {
+      primaryText: '#111111',
+      purpleText: '#7C3AED',
+    },
+    background: {
+      primaryBg: '#FFFFFF',
+    },
+  },
+  dark: {
+    text: {
+      primaryText: '#FFFFFF',
+    },
+    background: {
+      primaryBg: '#262626',
+    },
+  },
+} as const;
+`,
+  );
+
+  const colors = await readColors(vscode.Uri.file(filePath) as vscode.Uri);
+
+  assert.equal(colors.find((color) => color.key === 'light.text.primaryText')?.value, '#111111');
+  assert.equal(colors.find((color) => color.key === 'dark.background.primaryBg')?.value, '#262626');
+});
+
 test('readColors resolves aliases against the detected export name', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-'));
   tempDirs.push(dir);

@@ -28,8 +28,8 @@ export function warnDeprecatedImportStyleIfNeeded(context: vscode.ExtensionConte
   ].some((value) => value !== undefined);
 
   const message = hasExplicitImportMode
-    ? 'Color Token Manager: colorTokenManager.importStyle is deprecated and ignored while colorTokenManager.importMode is set. Remove importStyle before v1.0.0.'
-    : 'Color Token Manager: colorTokenManager.importStyle is deprecated. Use colorTokenManager.importMode instead (supports named, default, and namespace). importStyle will be removed in v1.0.0.';
+    ? 'Color Token Manager: colorTokenManager.importStyle is deprecated and ignored because colorTokenManager.importMode is set. Remove importStyle before v1.0.0.'
+    : 'Color Token Manager: colorTokenManager.importStyle is deprecated. Use colorTokenManager.importMode instead for named, default, or namespace imports before v1.0.0.';
 
   void vscode.window.showWarningMessage(message).then(() => undefined);
   void context.globalState.update(IMPORT_STYLE_DEPRECATION_KEY, true);
