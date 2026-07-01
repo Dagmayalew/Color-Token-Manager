@@ -72,32 +72,40 @@ export function getWebviewHtml(
       display: flex;
       flex-direction: column;
       min-height: 100vh;
-      overflow: auto;
+      overflow: hidden;
     }
 
     .app-header {
-      padding: 20px 24px;
+      padding: 12px 16px;
       border-bottom: 1px solid var(--border);
       background: linear-gradient(180deg, color-mix(in srgb, var(--surface-1) 92%, transparent), color-mix(in srgb, var(--surface-2) 92%, transparent));
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 20px;
+      flex: 0 0 auto;
+      max-height: 22vh;
+      overflow: auto;
+    }
+
+    .title-area {
+      min-width: 0;
+      max-width: 54%;
     }
 
     .title-area h1 {
-      font-size: clamp(2rem, 2.8vw, 2.8rem);
-      margin: 0 0 6px 0;
+      font-size: clamp(1.5rem, 2vw, 2.1rem);
+      margin: 0 0 3px 0;
       font-weight: 750;
       letter-spacing: -0.04em;
     }
 
     .title-area p {
-      font-size: 13px;
+      font-size: 10px;
       color: var(--text-muted);
-      margin: 0 0 10px;
-      line-height: 1.55;
-      max-width: 58ch;
+      margin: 0 0 5px;
+      line-height: 1.3;
+      max-width: 42ch;
     }
 
     .file-info {
@@ -105,96 +113,88 @@ export function getWebviewHtml(
       font-size: 11px;
       color: var(--text-muted);
       background: var(--surface-3);
-      padding: 6px 10px;
+      padding: 5px 9px;
       border-radius: 999px;
       display: inline-block;
       border: 1px solid var(--border);
     }
 
     .project-state {
-      display: grid;
-      gap: 10px;
-      margin-top: 12px;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 5px;
     }
 
     .state-card {
+      flex: 1 1 140px;
       background: var(--surface-3);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
-      padding: 12px 13px;
+      padding: 7px 9px;
       box-shadow: 0 1px 0 color-mix(in srgb, white 4%, transparent) inset;
     }
 
     .state-label {
       display: block;
-      font-size: 10px;
+      font-size: 9px;
       text-transform: uppercase;
       color: var(--text-muted);
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
 
     .state-value {
-      font-size: 12px;
+      font-size: 10px;
       overflow-wrap: anywhere;
     }
 
     .next-step {
-      margin-top: 12px;
-      padding: 12px 14px;
-      border: 1px solid var(--border);
-      border-left: 4px solid var(--accent);
-      border-radius: var(--radius-sm);
-      background: color-mix(in srgb, var(--surface-3) 92%, transparent);
-      font-size: 12px;
-      line-height: 1.5;
-      box-shadow: var(--shadow);
-    }
-
-    .next-step strong {
-      display: block;
-      margin-bottom: 2px;
+      display: none;
     }
 
     .workflow-pill {
       display: inline-block;
-      font-size: 11px;
-      padding: 4px 10px;
+      font-size: 9px;
+      padding: 2px 7px;
       border-radius: 999px;
       background: var(--vscode-badge-background);
       color: var(--vscode-badge-foreground);
-      margin-left: 10px;
+      margin-left: 5px;
       vertical-align: middle;
     }
 
     .header-actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 6px;
       justify-content: flex-end;
+      max-width: 40%;
     }
 
     .summary-strip {
       display: grid;
-      gap: 12px;
-      padding: 14px 24px;
+      gap: 8px;
+      padding: 8px 16px;
       background: var(--surface-1);
       border-bottom: 1px solid var(--border);
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      flex: 0 0 auto;
+      max-height: 7vh;
+      overflow: auto;
     }
 
     .stat-item {
       display: flex;
       flex-direction: column;
       min-width: 0;
-      padding: 10px 12px;
+      padding: 8px 10px;
       border-radius: var(--radius-sm);
       background: var(--surface-3);
       border: 1px solid var(--border);
       box-shadow: 0 1px 0 color-mix(in srgb, white 4%, transparent) inset;
     }
 
-    .stat-value { font-size: 18px; font-weight: 750; line-height: 1.2; }
+    .stat-value { font-size: 16px; font-weight: 750; line-height: 1.2; }
     .stat-label { font-size: 10px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
 
     .main-layout {
@@ -202,18 +202,52 @@ export function getWebviewHtml(
       flex: 1;
       min-height: 0;
       overflow: hidden;
+      max-height: 60vh;
     }
 
     .sidebar-nav {
       width: 200px;
       border-right: 1px solid var(--border);
       background: var(--surface-1);
-      padding: 12px;
+      padding: 10px;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
       flex: 0 0 200px;
       overflow: auto;
+    }
+
+    .sidebar-note {
+      margin: 6px 2px 2px;
+      padding: 8px 9px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--surface-3) 88%, transparent);
+      color: var(--text-muted);
+      font-size: 10px;
+      line-height: 1.35;
+    }
+
+    .sidebar-note strong {
+      display: block;
+      color: var(--vscode-editor-foreground);
+      font-size: 10px;
+      margin-bottom: 2px;
+    }
+
+    .sidebar-note ul {
+      margin: 6px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .sidebar-note li {
+      margin: 0 0 4px;
+      padding: 3px 5px;
+      border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+      border-radius: 7px;
+      background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+      line-height: 1.2;
     }
 
     .nav-button {
@@ -221,13 +255,14 @@ export function getWebviewHtml(
       border: 1px solid transparent;
       color: var(--vscode-foreground);
       text-align: left;
-      padding: 10px 12px;
+      padding: 8px 9px;
       border-radius: var(--radius-sm);
       cursor: pointer;
       display: flex;
       align-items: flex-start;
       gap: 8px;
-      min-height: 38px;
+      min-height: 34px;
+      line-height: 1.25;
     }
 
     .nav-hint {
@@ -261,13 +296,13 @@ export function getWebviewHtml(
     .token-controls {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
       position: sticky;
       top: 0;
       background: color-mix(in srgb, var(--surface-2) 92%, transparent);
-      padding: 10px 0 12px;
+      padding: 8px 0 10px;
       z-index: 10;
-      gap: 12px;
+      gap: 10px;
       align-items: center;
       backdrop-filter: blur(12px);
     }
@@ -277,13 +312,13 @@ export function getWebviewHtml(
       background: var(--vscode-input-background);
       color: var(--vscode-input-foreground);
       border: 1px solid var(--vscode-input-border);
-      padding: 10px 12px;
+      padding: 9px 11px;
       border-radius: var(--radius-sm);
       min-width: 180px;
     }
 
     .token-group {
-      margin-bottom: 24px;
+      margin-bottom: 14px;
       background: var(--surface-3);
       border: 1px solid var(--border);
       border-radius: var(--radius);
@@ -301,20 +336,20 @@ export function getWebviewHtml(
       text-transform: uppercase;
       color: var(--text-muted);
       border-bottom: 1px solid var(--border);
-      padding: 12px 14px;
+      padding: 10px 13px;
       letter-spacing: 0.08em;
     }
 
     .token-row {
       display: grid;
-      grid-template-columns: 40px minmax(0, 1fr) minmax(240px, 320px);
+      grid-template-columns: 36px minmax(0, 1fr) minmax(200px, 280px);
       align-items: start;
-      gap: 14px;
-      padding: 14px;
+      gap: 10px;
+      padding: 11px 12px;
       border-radius: var(--radius-sm);
       border: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
       background: color-mix(in srgb, var(--surface-3) 92%, transparent);
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
 
     .token-row:hover {
@@ -322,9 +357,9 @@ export function getWebviewHtml(
     }
 
     .swatch-large {
-      width: 32px;
-      height: 32px;
-      border-radius: 10px;
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
       border: 1px solid var(--border);
       cursor: pointer;
       transition: transform 0.1s;
@@ -340,7 +375,7 @@ export function getWebviewHtml(
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      gap: 6px;
+      gap: 3px;
     }
 
     .token-key {
@@ -352,10 +387,10 @@ export function getWebviewHtml(
     }
 
     .token-meta {
-      font-size: 11px;
+      font-size: 9px;
       color: var(--text-muted);
       display: flex;
-      gap: 8px;
+      gap: 5px;
       flex-wrap: wrap;
     }
 
@@ -363,7 +398,7 @@ export function getWebviewHtml(
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 3px 8px;
+      padding: 2px 7px;
       border-radius: 999px;
       border: 1px solid var(--border);
       background: color-mix(in srgb, var(--surface-2) 80%, transparent);
@@ -383,21 +418,21 @@ export function getWebviewHtml(
 
     .input-hex {
       font-family: var(--vscode-editor-font-family);
-      font-size: 12px;
+      font-size: 11px;
       background: var(--vscode-input-background);
       border: 1px solid var(--vscode-input-border);
       color: var(--vscode-input-foreground);
-      padding: 8px 10px;
+      padding: 6px 9px;
       border-radius: 10px;
       width: 100%;
     }
 
     .actions-cell {
       display: flex;
-      gap: 4px;
+      gap: 5px;
       justify-content: flex-end;
       flex-wrap: wrap;
-      padding-top: 2px;
+      padding-top: 0;
     }
 
     button {
@@ -421,27 +456,27 @@ export function getWebviewHtml(
     .grid-2 {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 12px;
+      gap: 10px;
     }
 
     .card {
       background: var(--surface-3);
       border: 1px solid var(--border);
-      padding: 16px;
+      padding: 13px;
       border-radius: var(--radius-sm);
       box-shadow: var(--shadow);
     }
 
     .card h3 {
-      margin: 0 0 8px 0;
-      font-size: 15px;
+      margin: 0 0 6px 0;
+      font-size: 14px;
     }
 
     .card p {
-      font-size: 12px;
+      font-size: 11px;
       color: var(--text-muted);
-      margin: 0 0 16px 0;
-      line-height: 1.45;
+      margin: 0 0 12px 0;
+      line-height: 1.35;
     }
 
     .card.primary {
@@ -453,25 +488,25 @@ export function getWebviewHtml(
     .prompt-actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 6px;
     }
 
     .prompt-card {
       background: var(--surface-3);
       border: 1px solid var(--border);
-      padding: 16px;
+      padding: 13px;
       border-radius: var(--radius-sm);
       box-shadow: var(--shadow);
     }
 
     .prompt-card h3 {
-      margin: 0 0 8px 0;
-      font-size: 15px;
+      margin: 0 0 6px 0;
+      font-size: 14px;
     }
 
     .section-title {
-      margin: 0 0 10px;
-      font-size: 13px;
+      margin: 0 0 8px;
+      font-size: 12px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.08em;
@@ -479,10 +514,10 @@ export function getWebviewHtml(
     }
 
     .section-subtitle {
-      margin: 0 0 16px;
+      margin: 0 0 12px;
       color: var(--text-muted);
-      font-size: 13px;
-      line-height: 1.6;
+      font-size: 12px;
+      line-height: 1.45;
       max-width: 70ch;
     }
 
@@ -498,7 +533,7 @@ export function getWebviewHtml(
 
     .workflow-section,
     .agent-section {
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
 
     .prompt-code {
@@ -608,13 +643,13 @@ export function getWebviewHtml(
 
     .detected-card {
       display: grid;
-      grid-template-columns: 40px 1fr auto;
+      grid-template-columns: 32px 1fr auto;
       align-items: start;
-      gap: 12px;
-      padding: 12px;
+      gap: 10px;
+      padding: 10px 11px;
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       background: var(--surface-3);
       box-shadow: var(--shadow);
     }
@@ -624,21 +659,21 @@ export function getWebviewHtml(
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
 
     .detected-info {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 2px;
     }
 
     .detected-header {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
 
     .detected-header code {
@@ -646,7 +681,7 @@ export function getWebviewHtml(
     }
 
     .detected-suggestion {
-      font-size: 12px;
+      font-size: 11px;
       color: var(--vscode-editor-foreground);
     }
 
@@ -655,7 +690,7 @@ export function getWebviewHtml(
     }
 
     .detected-alts {
-      font-size: 11px;
+      font-size: 10px;
       color: var(--text-muted);
     }
 
@@ -671,17 +706,27 @@ export function getWebviewHtml(
 
       .app-header {
         grid-template-columns: 1fr;
-        padding: 16px;
+        padding: 12px;
+        max-height: 18vh;
+      }
+
+      .title-area {
+        max-width: none;
       }
 
       .title-area h1 {
         font-size: 1.8rem;
       }
 
+      .title-area p {
+        font-size: 10px;
+      }
+
       .summary-strip {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        padding: 12px 16px;
+        padding: 8px 12px;
+        max-height: 8vh;
       }
 
       .sidebar-nav {
@@ -692,17 +737,19 @@ export function getWebviewHtml(
         overflow-y: hidden;
         border-right: 0;
         border-bottom: 1px solid var(--border);
-        padding: 10px;
+        padding: 8px;
       }
 
       .nav-button {
         flex: 0 0 auto;
-        white-space: nowrap;
-        min-width: 120px;
+        min-width: 118px;
+        max-width: 160px;
+        white-space: normal;
       }
 
       .main-layout {
         flex-direction: column;
+        max-height: none;
       }
 
       .content-pane {
@@ -717,8 +764,8 @@ export function getWebviewHtml(
       }
 
       .token-row {
-        grid-template-columns: 40px minmax(0, 1fr);
-        margin-bottom: 12px;
+        grid-template-columns: 36px minmax(0, 1fr);
+        margin-bottom: 8px;
       }
 
       .token-row .input-hex,
@@ -742,10 +789,16 @@ export function getWebviewHtml(
 
       .app-header .header-actions {
         justify-content: flex-start;
+        max-width: none;
       }
 
       .project-state {
-        grid-template-columns: 1fr;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      body {
+        overflow: auto;
       }
     }
   </style>
@@ -762,18 +815,12 @@ export function getWebviewHtml(
         <div class="state-card"><span class="state-label">Colors</span><div class="state-value" id="colorsState">-</div></div>
         <div class="state-card"><span class="state-label">Theme</span><div class="state-value" id="themeState">-</div></div>
       </div>
-      <div class="next-step" id="nextStep">
-        <strong>Next step</strong>
-        Preview the current file first. If the workspace is not set up yet, run setup and come back here.
-      </div>
-      <div class="next-step" id="projectNotes" style="margin-top:8px;">
-        <strong>What I found</strong>
-        No project notes yet. Setup can help the extension find the right token file faster.
-      </div>
     </div>
     <div class="header-actions">
-      <button id="previewCurrentFile" type="button">Preview Current File</button>
-      <button id="auditDesignTokens" class="ghost" type="button">Run Audit</button>
+      <button id="previewCurrentFile" type="button">Preview</button>
+      <button id="auditDesignTokens" class="ghost" type="button">Audit</button>
+      <button id="pickColorsFileHeader" class="ghost" type="button">Colors File</button>
+      <button id="pickThemeFileHeader" class="ghost" type="button">Theme File</button>
     </div>
   </header>
 
@@ -800,19 +847,30 @@ export function getWebviewHtml(
     <nav class="sidebar-nav">
       <button class="nav-button active" data-tab="tokens" type="button">
         <span>Library</span>
-        <span class="nav-hint">Tokens and edits</span>
+        <span class="nav-hint">Tokens and search</span>
       </button>
       <button class="nav-button" data-tab="workflows" type="button">
         <span>Workflows</span>
-        <span class="nav-hint">One click paths</span>
+        <span class="nav-hint">Preview and extract</span>
       </button>
       <button class="nav-button" data-tab="detected" type="button">
         <span>Detected</span>
-        <span class="nav-hint">Current file</span>
+        <span class="nav-hint">File colors</span>
       </button>
+      <div class="sidebar-note">
+        <strong>Quick guide</strong>
+        <ul>
+          <li><strong>Library:</strong> edit tokens.</li>
+          <li><strong>Workflows:</strong> preview or extract.</li>
+          <li><strong>Detected:</strong> review active colors.</li>
+          <li><strong>Colors File:</strong> switch tokens.</li>
+          <li><strong>Theme File:</strong> switch theme.</li>
+        </ul>
+      </div>
       <div style="flex:1"></div>
       <button class="nav-button ghost" id="refresh" type="button">Refresh</button>
-      <button class="nav-button ghost" id="pickFileAgain" type="button">Pick File Again</button>
+      <button class="nav-button ghost" id="pickColorsFile" type="button">Colors File</button>
+      <button class="nav-button ghost" id="pickThemeFile" type="button">Theme File</button>
     </nav>
 
     <section id="pane-tokens" class="content-pane active">
@@ -831,29 +889,29 @@ export function getWebviewHtml(
     <section id="pane-workflows" class="content-pane">
       <div class="workflow-section">
         <div class="section-title">Workflows</div>
-        <p class="section-subtitle">Start with the most common path first. Each card is a direct action.</p>
+        <p class="section-subtitle">Start with the common path.</p>
         <div class="grid-2">
           <div class="card primary">
-            <h3>Preview Current File</h3>
-            <p>See suggested token changes before anything is applied.</p>
+            <h3>Current File</h3>
+            <p>Preview suggested changes first.</p>
             <div class="card-actions">
               <button id="workflowPreviewCurrent" type="button">Preview</button>
-              <button id="workflowExtractCurrent" class="ghost" type="button">Apply After Preview</button>
+              <button id="workflowExtractCurrent" class="ghost" type="button">Apply</button>
             </div>
           </div>
           <div class="card">
-            <h3>Folder Scan</h3>
-            <p>Check a folder for colors that should become tokens.</p>
+            <h3>Folder</h3>
+            <p>Check a folder for token-worthy colors.</p>
             <div class="card-actions">
-              <button id="workflowPreviewFolder" type="button">Scan Folder</button>
+              <button id="workflowPreviewFolder" type="button">Scan</button>
               <button id="workflowExtractFolder" class="ghost" type="button">Extract</button>
             </div>
           </div>
           <div class="card">
-            <h3>Selection Only</h3>
-            <p>Preview only the highlighted code when you want a smaller change.</p>
+            <h3>Selection</h3>
+            <p>Preview only the selection.</p>
             <div class="card-actions">
-              <button id="workflowPreviewSelection" type="button">Preview Selection</button>
+              <button id="workflowPreviewSelection" type="button">Preview</button>
             </div>
           </div>
         </div>
@@ -864,8 +922,8 @@ export function getWebviewHtml(
       <div class="detected-section">
         <div class="detected-header-row">
           <div>
-            <div class="section-title">Detected Hardcoded Colors</div>
-            <p class="section-subtitle">Colors found in the active editor file, grouped by value with suggested token names.</p>
+            <div class="section-title">Detected Colors</div>
+            <p class="section-subtitle">Grouped by value with suggested token names.</p>
           </div>
         </div>
         <div id="detectedGroups"></div>
@@ -880,7 +938,6 @@ export function getWebviewHtml(
     const searchInput = document.getElementById('search');
     const tokenGroupsContainer = document.getElementById('tokenGroups');
     const statusEl = document.getElementById('status');
-    const mcpStatusEl = document.getElementById('mcpStatus');
     let statusTimeout = undefined;
 
     const actionMap = {
@@ -898,6 +955,10 @@ export function getWebviewHtml(
       workflowAudit: 'auditDesignTokens',
       workflowUnused: 'findUnusedTokens',
       exportTokensWorkflow: 'exportTokens',
+      pickColorsFileHeader: 'pickColorsFile',
+      pickThemeFileHeader: 'pickThemeFile',
+      pickColorsFile: 'pickColorsFile',
+      pickThemeFile: 'pickThemeFile',
     };
 
     Object.entries(actionMap).forEach(([id, type]) => {
@@ -938,9 +999,6 @@ export function getWebviewHtml(
       }
       if (msg.type === 'status') {
         setStatus(msg.message || 'Ready.');
-        if (/mcp/i.test(msg.message || '')) {
-          mcpStatusEl.textContent = msg.message;
-        }
       }
     });
 
@@ -977,41 +1035,26 @@ export function getWebviewHtml(
       document.getElementById('statAliases').textContent = String(aliases);
       document.getElementById('statUnique').textContent = String(unique);
       document.getElementById('filePathDisplay').textContent = state.filePath || 'No file loaded';
-      document.getElementById('workflowState').textContent = state.workflow || 'colorsOnly';
-      document.getElementById('colorsState').textContent = state.colorsFilePath || '-';
-      document.getElementById('themeState').textContent = state.themeFilePath || '-';
-      document.getElementById('themeProviderState').textContent = state.themeProviderFilePath || '-';
-      document.getElementById('nextWriteTargetState').textContent = state.nextWriteTarget || '-';
-      const projectNotesEl = document.getElementById('projectNotes');
-      if (projectNotesEl) {
-        const notes = Array.isArray(state.summaryNotes) ? state.summaryNotes.filter(Boolean) : [];
-        projectNotesEl.innerHTML =
-          '<strong>What I found</strong>' +
-          (notes.length ? notes.map((note) => '<div>' + note + '</div>').join('') : '<div>No strong signal yet; setup can help detect the right file.</div>');
-      }
-      const nextStepEl = document.getElementById('nextStep');
-      if (nextStepEl) {
-        if (state.themeProviderFilePath && state.themeFilePath) {
-          nextStepEl.innerHTML = '<strong>Next step</strong>Theme is driving this project. Audit the theme file first, then keep colors as the backing palette.';
-        } else if (state.workflow === 'both') {
-          nextStepEl.innerHTML = '<strong>Next step</strong>Split project detected. Use the theme file for semantic edits and keep colors as the source palette.';
-        } else if (state.workflow === 'themeOnly') {
-          nextStepEl.innerHTML = '<strong>Next step</strong>Theme-only project detected. Work directly in the theme file.';
-        } else {
-          nextStepEl.innerHTML = '<strong>Next step</strong>Preview the current file, or run setup if you want the extension to detect the right token file.';
-        }
-      }
+      const workflowStateEl = document.getElementById('workflowState');
+      const colorsStateEl = document.getElementById('colorsState');
+      const themeStateEl = document.getElementById('themeState');
+      const filePathDisplayEl = document.getElementById('filePathDisplay');
+      const workflowPillEl = document.getElementById('workflowPill');
+      if (workflowStateEl) workflowStateEl.textContent = state.workflow || 'colorsOnly';
+      if (colorsStateEl) colorsStateEl.textContent = state.colorsFilePath || '-';
+      if (themeStateEl) themeStateEl.textContent = state.themeFilePath || '-';
+      if (filePathDisplayEl) filePathDisplayEl.textContent = state.filePath || 'No file loaded';
       const workflowText = state.workflow === 'themeOnly'
         ? 'Theme only'
         : state.workflow === 'both'
           ? 'Colors + Theme'
           : 'Colors only';
-      document.getElementById('workflowPill').textContent = workflowText;
+      if (workflowPillEl) workflowPillEl.textContent = workflowText;
       const infoParts = [];
       if (state.colorsFilePath) infoParts.push('Colors: ' + state.colorsFilePath);
       if (state.themeFilePath) infoParts.push('Theme: ' + state.themeFilePath);
-      if (infoParts.length) {
-        document.getElementById('filePathDisplay').textContent = infoParts.join(' | ');
+      if (infoParts.length && filePathDisplayEl) {
+        filePathDisplayEl.textContent = infoParts.join(' | ');
       }
 
       renderTokenGroups();
@@ -1077,7 +1120,7 @@ export function getWebviewHtml(
         btn.textContent = 'Preview';
         btn.title = 'Open extraction preview for the active file';
         btn.addEventListener('click', () => {
-          vscode.postMessage({ type: 'previewFromCurrent' });
+          vscode.postMessage({ type: 'previewFromCurrentFile' });
         });
         actions.appendChild(btn);
 

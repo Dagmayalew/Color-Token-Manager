@@ -681,6 +681,12 @@ async function handleWebviewMessage(message: {
       case 'pickFileAgain':
         await handlePickFileAgain();
         break;
+      case 'pickColorsFile':
+        await handlePickPresetFile('colors');
+        break;
+      case 'pickThemeFile':
+        await handlePickPresetFile('theme');
+        break;
       case 'extractFromCurrentFile':
         await extractColorsFromCurrentFile(lastExtractionTarget);
         await refreshWebview(selectedFile, 'Extracted tokens from current file.');
@@ -1023,6 +1029,22 @@ async function handlePickFileAgain(context?: vscode.ExtensionContext): Promise<v
   if (context) {
     await openColorManager(context, fileUri);
   } else if (panel) {
+    await refreshWebview(fileUri, `Selected ${await getSelectedProjectFileLabel(fileUri)} changed.`);
+    setupWatcher(fileUri);
+  }
+}
+
+async function handlePickPresetFile(preset: 'colors' | 'theme'): Promise<void> {
+  const contextUri = vscode.window.activeTextEditor?.document.uri;
+  const fileUri = await runSetupWizard(contextUri, preset);
+  if (!fileUri) {
+    return;
+  }
+
+  selectedFile = fileUri;
+  await rememberColorsFile(fileUri);
+  await updateStatusBar();
+  if (panel) {
     await refreshWebview(fileUri, `Selected ${await getSelectedProjectFileLabel(fileUri)} changed.`);
     setupWatcher(fileUri);
   }

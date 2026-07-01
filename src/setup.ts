@@ -19,6 +19,7 @@ type TokenPathMode = 'auto' | 'flat' | 'nested';
 type ThemeStyle = 'colorSeries' | 'lightDark' | 'reactNative';
 
 type SetupChoice =
+  | { kind: 'browsePreset'; preset: 'colors' | 'theme' }
   | { kind: 'workflow'; workflow: SetupWorkflow }
   | { kind: 'existing'; uri: vscode.Uri }
   | { kind: 'createStyle'; style: ThemeStyle }
@@ -34,7 +35,10 @@ type ColorsFileSelection = {
 
 type SetupWorkflow = 'colorsOnly' | 'themeOnly' | 'both';
 
-export async function runSetupWizard(contextUri?: vscode.Uri): Promise<vscode.Uri | undefined> {
+export async function runSetupWizard(
+  contextUri?: vscode.Uri,
+  preset?: 'colors' | 'theme',
+): Promise<vscode.Uri | undefined> {
   const workspaceFolder = resolveWorkspaceFolder(contextUri);
   if (!workspaceFolder) {
     throw new Error('Open a workspace before setting up Color Token Manager.');
@@ -48,7 +52,7 @@ export async function runSetupWizard(contextUri?: vscode.Uri): Promise<vscode.Ur
     },
     async (progress) => {
       progress.report({ message: 'Finding token files', increment: 10 });
-      const selection = await chooseSetup(workspaceFolder, contextUri);
+      const selection = await chooseSetup(workspaceFolder, contextUri, preset);
       if (!selection) {
         return undefined;
       }
@@ -69,6 +73,7 @@ export async function runSetupWizard(contextUri?: vscode.Uri): Promise<vscode.Ur
 async function chooseSetup(
   workspaceFolder: vscode.WorkspaceFolder,
   contextUri?: vscode.Uri,
+  preset?: 'colors' | 'theme',
 ): Promise<ColorsFileSelection | undefined> {
   // Find existing token/theme files in the workspace
   let detectedFiles: vscode.Uri[] = [];
@@ -99,6 +104,11 @@ async function chooseSetup(
   }
 
   const choice = selected.choice;
+
+  if (choice.kind === 'browsePreset') {
+    const uri = await browseForPresetFile(choice.preset, contextUri);
+    return uri ? { uri, workflow: choice.preset === 'theme' ? 'both' : 'colorsOnly' } : undefined;
+  }
 
   if (choice.kind === 'existing' && detectedFiles.length === 1) {
     return { uri: detectedFiles[0] };
@@ -140,6 +150,18 @@ function buildSetupChoices(
   }));
 
   return [
+    {
+      label: '$(symbol-color) Choose colors file',
+      description: 'Pick a colors file manually',
+      detail: 'Open an existing colors file in this workspace.',
+      choice: { kind: 'browsePreset' as const, preset: 'colors' as const },
+    },
+    {
+      label: '$(paintcan) Choose theme file',
+      description: 'Pick a theme file manually',
+      detail: 'Open an existing theme file in this workspace.',
+      choice: { kind: 'browsePreset' as const, preset: 'theme' as const },
+    },
     {
       label: '$(symbol-color) Colors only',
       description: 'One simple file',
@@ -246,6 +268,23 @@ async function chooseWorkflowSetup(
   }
 
   return base;
+}
+
+async function browseForPresetFile(
+  preset: 'colors' | 'theme',
+  contextUri?: vscode.Uri,
+): Promise<vscode.Uri | undefined> {
+  const title = preset === 'theme' ? 'Choose a theme file' : 'Choose a colors file';
+  const selected = await vscode.window.showOpenDialog({
+    canSelectFiles: true,
+    canSelectFolders: false,
+    canSelectMany: false,
+    defaultUri: getDefaultDialogUri(contextUri),
+    filters: { TypeScript: ['ts'] },
+    openLabel: preset === 'theme' ? 'Use theme file' : 'Use colors file',
+    title,
+  });
+  return selected?.[0];
 }
 
 function describeSetupFileKind(uri: vscode.Uri): string {
