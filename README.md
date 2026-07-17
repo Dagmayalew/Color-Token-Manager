@@ -86,11 +86,11 @@ Use this to choose how edits are handled:
 
 Modes:
 
-| Value          | Behavior                                                                                        |
-| -------------- | ----------------------------------------------------------------------------------------------- |
+| Value          | Behavior                                        |
+| -------------- | ----------------------------------------------- |
 | `safe`         | Replace only languages that support safe edits. |
-| `scanOnly`     | Scan and preview, but do not apply edits. |
-| `experimental` | Allow edits for supported languages. |
+| `scanOnly`     | Scan and preview, but do not apply edits.       |
+| `experimental` | Allow edits for supported languages.            |
 
 CSS output uses:
 

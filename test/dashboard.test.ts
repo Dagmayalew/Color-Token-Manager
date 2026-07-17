@@ -4,7 +4,11 @@ import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, test } from 'node:test';
 import * as vscode from 'vscode';
-import { buildDesignSystemHealthDashboard, buildDesignSystemHealthDashboardHtml, exportDesignSystemHealthHtml } from '../src/dashboard';
+import {
+  buildDesignSystemHealthDashboard,
+  buildDesignSystemHealthDashboardHtml,
+  exportDesignSystemHealthHtml,
+} from '../src/dashboard';
 
 const tempDirs: string[] = [];
 
@@ -76,10 +80,12 @@ export const Button = { color: colors.light.text.primary };
   );
 
   (vscode as unknown as { __setWorkspaceRoot(value: string): void }).__setWorkspaceRoot(root);
-  (vscode as unknown as { __setTestConfig(values: Record<string, unknown>): void }).__setTestConfig({
-    projectWorkflow: 'both',
-    colorsFile: 'colors.ts',
-    themeFile: 'theme.ts',
-  });
+  (vscode as unknown as { __setTestConfig(values: Record<string, unknown>): void }).__setTestConfig(
+    {
+      projectWorkflow: 'both',
+      colorsFile: 'colors.ts',
+      themeFile: 'theme.ts',
+    },
+  );
   return root;
 }

@@ -38,7 +38,9 @@ export async function buildDesignSystemHealthDashboard(
   const summary = await getProjectSummary(contextUri);
   const activeFile = summary.colorsFile ?? summary.themeFile ?? summary.themeProviderFile;
   if (!activeFile) {
-    throw new Error('No design token file was found. Run setup or open a workspace with colors/theme files.');
+    throw new Error(
+      'No design token file was found. Run setup or open a workspace with colors/theme files.',
+    );
   }
 
   const audit = await buildThemeAuditReport(activeFile);
@@ -54,7 +56,9 @@ export async function buildDesignSystemHealthDashboard(
   return {
     score,
     workflow: summary.workflow,
-    colorsFile: summary.colorsFile ? vscode.workspace.asRelativePath(summary.colorsFile) : undefined,
+    colorsFile: summary.colorsFile
+      ? vscode.workspace.asRelativePath(summary.colorsFile)
+      : undefined,
     themeFile: summary.themeFile ? vscode.workspace.asRelativePath(summary.themeFile) : undefined,
     themeProviderFile: summary.themeProviderFile
       ? vscode.workspace.asRelativePath(summary.themeProviderFile)
@@ -229,7 +233,10 @@ export function exportDesignSystemHealthHtml(dashboard: DesignSystemHealthDashbo
     `<h2>Token Heatmap</h2>`,
     dashboard.tokens.length
       ? `<table border="1" cellspacing="0" cellpadding="6"><tr><th>Token</th><th>Uses</th><th>Value</th></tr>${dashboard.tokens
-          .map((token) => `<tr><td>${escapeHtml(token.tokenPath)}</td><td>${token.occurrences}</td><td>${escapeHtml(token.value)}</td></tr>`)
+          .map(
+            (token) =>
+              `<tr><td>${escapeHtml(token.tokenPath)}</td><td>${token.occurrences}</td><td>${escapeHtml(token.value)}</td></tr>`,
+          )
           .join('')}</table>`
       : '<p>No token usage detected yet.</p>',
     `<h2>Summary Notes</h2>`,
@@ -241,7 +248,10 @@ export function exportDesignSystemHealthHtml(dashboard: DesignSystemHealthDashbo
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Design System Health Dashboard</title><style>body{font-family:Arial,sans-serif;padding:24px;line-height:1.5} table{border-collapse:collapse;max-width:100%} th,td{border:1px solid #ccc} h1,h2{margin-bottom:8px}</style></head><body>${sections.join('')}</body></html>`;
 }
 
-async function buildTokenUsage(colors: AppColor[], colorsFileUri: vscode.Uri): Promise<DashboardTokenUsage[]> {
+async function buildTokenUsage(
+  colors: AppColor[],
+  colorsFileUri: vscode.Uri,
+): Promise<DashboardTokenUsage[]> {
   const files = await findProjectSourceFiles(colorsFileUri);
   const counts = new Map<string, number>();
   for (const fileUri of files) {
@@ -268,7 +278,10 @@ async function buildTokenUsage(colors: AppColor[], colorsFileUri: vscode.Uri): P
     .sort((a, b) => b.occurrences - a.occurrences);
 }
 
-function computeMappingCoverage(summary: Awaited<ReturnType<typeof getProjectSummary>>, audit: ThemeAuditReport): number {
+function computeMappingCoverage(
+  summary: Awaited<ReturnType<typeof getProjectSummary>>,
+  audit: ThemeAuditReport,
+): number {
   if (!summary.colorsFile || !summary.themeFile) {
     return summary.themeProviderFile ? 70 : 100;
   }
@@ -307,7 +320,9 @@ function getCriticalIssues(audit: ThemeAuditReport, mappingCoverage: number): st
     issues.push(`Theme mapping coverage is ${mappingCoverage}%.`);
   }
   if (audit.missingThemeCounterparts.length) {
-    issues.push(`${audit.missingThemeCounterparts.length} token(s) are missing theme counterparts.`);
+    issues.push(
+      `${audit.missingThemeCounterparts.length} token(s) are missing theme counterparts.`,
+    );
   }
   if (audit.unused.length) {
     issues.push(`${audit.unused.length} unused token(s) can be removed.`);
@@ -318,13 +333,16 @@ function getCriticalIssues(audit: ThemeAuditReport, mappingCoverage: number): st
 function getWarnings(audit: ThemeAuditReport, usageCoverage: number): string[] {
   const warnings: string[] = [];
   if (audit.aliases.length) warnings.push(`${audit.aliases.length} alias token(s) are present.`);
-  if (audit.duplicateValues.length) warnings.push(`${audit.duplicateValues.length} duplicate value group(s) detected.`);
-  if (usageCoverage < 70) warnings.push(`Usage coverage is ${usageCoverage}%; some tokens may be underused.`);
+  if (audit.duplicateValues.length)
+    warnings.push(`${audit.duplicateValues.length} duplicate value group(s) detected.`);
+  if (usageCoverage < 70)
+    warnings.push(`Usage coverage is ${usageCoverage}%; some tokens may be underused.`);
   return warnings;
 }
 
 function buildTrendText(score: number, audit: ThemeAuditReport): string {
-  if (audit.contrastRisks.length) return `Trend: score pulled down by ${audit.contrastRisks.length} contrast issue(s).`;
+  if (audit.contrastRisks.length)
+    return `Trend: score pulled down by ${audit.contrastRisks.length} contrast issue(s).`;
   if (score >= 90) return 'Trend: strong health with minimal risk.';
   if (score >= 75) return 'Trend: healthy with a few areas to tighten.';
   return 'Trend: attention needed; governance is slipping.';
@@ -334,7 +352,10 @@ async function findProjectSourceFiles(colorsFileUri: vscode.Uri): Promise<vscode
   const configuredExcludes = vscode.workspace
     .getConfiguration('colorTokenManager')
     .get<string[]>('excludeGlobs', []);
-  const files = await vscode.workspace.findFiles('**/*.{ts,tsx,js,jsx,css,scss,less,html,htm}', '{**/node_modules/**,**/dist/**,**/build/**,**/coverage/**,**/ios/**,**/android/**}');
+  const files = await vscode.workspace.findFiles(
+    '**/*.{ts,tsx,js,jsx,css,scss,less,html,htm}',
+    '{**/node_modules/**,**/dist/**,**/build/**,**/coverage/**,**/ios/**,**/android/**}',
+  );
   return files.filter((fileUri) => {
     if (fileUri.toString() === colorsFileUri.toString()) {
       return false;

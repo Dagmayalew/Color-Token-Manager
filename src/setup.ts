@@ -78,7 +78,12 @@ export async function runSetupWizard(
       const workflow = selection.workflow ?? (await chooseWorkflow());
 
       progress.report({ message: 'Saving workspace settings', increment: 35 });
-      const saved = await rememberSetup(selection.uri, tokenPathMode, selection.themeStyle, workflow);
+      const saved = await rememberSetup(
+        selection.uri,
+        tokenPathMode,
+        selection.themeStyle,
+        workflow,
+      );
       if (saved) {
         vscode.window.showInformationMessage(buildSetupSummary(saved));
       }
@@ -255,24 +260,24 @@ function buildSetupChoices(
 async function chooseWorkflow(): Promise<SetupWorkflow> {
   const selected = await vscode.window.showQuickPick(
     [
-    {
-      label: 'Colors only',
-      description: 'One simple file',
-      detail: 'Use one colors file for extraction and cleanup.',
-      workflow: 'colorsOnly' as const,
-    },
-    {
-      label: 'Theme only',
-      description: 'One theme file',
-      detail: 'Use one theme file for background, text, and surface.',
-      workflow: 'themeOnly' as const,
-    },
-    {
-      label: 'Colors + Theme',
-      description: 'Two linked files',
-      detail: 'Use both when colors and theme live apart.',
-      workflow: 'both' as const,
-    },
+      {
+        label: 'Colors only',
+        description: 'One simple file',
+        detail: 'Use one colors file for extraction and cleanup.',
+        workflow: 'colorsOnly' as const,
+      },
+      {
+        label: 'Theme only',
+        description: 'One theme file',
+        detail: 'Use one theme file for background, text, and surface.',
+        workflow: 'themeOnly' as const,
+      },
+      {
+        label: 'Colors + Theme',
+        description: 'Two linked files',
+        detail: 'Use both when colors and theme live apart.',
+        workflow: 'both' as const,
+      },
     ],
     {
       title: 'Choose Workflow',
@@ -329,7 +334,11 @@ async function browseForPresetFile(
 function describeSetupFileKind(uri: vscode.Uri): string {
   const fileName = path.basename(uri.fsPath).toLowerCase();
 
-  if (fileName === 'theme.ts' || fileName === 'themes.ts' || /(?:light|dark)theme\.ts$/.test(fileName)) {
+  if (
+    fileName === 'theme.ts' ||
+    fileName === 'themes.ts' ||
+    /(?:light|dark)theme\.ts$/.test(fileName)
+  ) {
     return 'Theme file';
   }
 

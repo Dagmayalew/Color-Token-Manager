@@ -2,11 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { type AppColor } from './types';
 import { detectExportNames } from './tokenDetection';
-import {
-  getProjectWorkflow,
-  pickProjectFile,
-  resolveProjectFile,
-} from './projectRouting';
+import { getProjectWorkflow, pickProjectFile, resolveProjectFile } from './projectRouting';
 
 const TOKEN_FILE_GLOB =
   '**/{colors,theme,themes,tokens,designTokens,design-tokens,designSystem,design-system}.{ts,tsx,js,jsx,json,jsonc,yaml,yml}';
@@ -185,22 +181,19 @@ export async function inspectTokenFile(fileUri: vscode.Uri): Promise<TokenFileIn
       continue;
     }
 
-    if (getColorAliasTarget(property.valueText, exportName) || isExternalTokenReference(property.valueText)) {
+    if (
+      getColorAliasTarget(property.valueText, exportName) ||
+      isExternalTokenReference(property.valueText)
+    ) {
       referenceTokenCount++;
     }
   }
 
   const nestedTokenCount = properties.filter(({ key }) => key.includes('.')).length;
   const normalizedRootKeys = new Set(rootKeys.map((key) => key.toLowerCase()));
-  const hasThemeShape = [
-    'text',
-    'background',
-    'surface',
-    'border',
-    'light',
-    'dark',
-    'colors',
-  ].some((key) => normalizedRootKeys.has(key));
+  const hasThemeShape = ['text', 'background', 'surface', 'border', 'light', 'dark', 'colors'].some(
+    (key) => normalizedRootKeys.has(key),
+  );
   const hasTokenShape =
     colorTokenCount > 0 ||
     referenceTokenCount > 0 ||
@@ -587,7 +580,9 @@ function getObjectForDeclaration(text: string, exportName: string): TokenSourceO
 }
 
 function getObjectForAnyObjectLiteral(text: string): TokenSourceObject | undefined {
-  const declaration = /\b(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\b/g.exec(text);
+  const declaration = /\b(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\b/g.exec(
+    text,
+  );
   if (!declaration) {
     return undefined;
   }
@@ -602,7 +597,10 @@ function getObjectForAnyObjectLiteral(text: string): TokenSourceObject | undefin
   return { exportName, object: parseObject(text, objectStart), format: 'objectLiteral' };
 }
 
-function getObjectForJsonDocument(text: string, context?: vscode.Uri): TokenSourceObject | undefined {
+function getObjectForJsonDocument(
+  text: string,
+  context?: vscode.Uri,
+): TokenSourceObject | undefined {
   const objectStart = skipWhitespaceAndComments(text, 0);
   if (text[objectStart] !== '{') {
     return undefined;
@@ -631,7 +629,10 @@ function getJsonTokenObjectName(context?: vscode.Uri): string {
   return 'tokens';
 }
 
-function getObjectForYamlDocument(text: string, context?: vscode.Uri): TokenSourceObject | undefined {
+function getObjectForYamlDocument(
+  text: string,
+  context?: vscode.Uri,
+): TokenSourceObject | undefined {
   if (!context || !/\.ya?ml$/i.test(context.fsPath)) {
     return undefined;
   }

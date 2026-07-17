@@ -29,7 +29,10 @@ afterEach(() => {
 test('resolveProjectFile prefers configured colors and theme files', async () => {
   const root = makeWorkspace();
   fs.mkdirSync(path.join(root, 'src/theme'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'src/theme/colors.ts'), `export const colors = { primary: '#000000' };`);
+  fs.writeFileSync(
+    path.join(root, 'src/theme/colors.ts'),
+    `export const colors = { primary: '#000000' };`,
+  );
   fs.writeFileSync(path.join(root, 'src/theme/theme.ts'), `export const theme = { colors: {} };`);
   setConfig(root, {
     projectWorkflow: 'both',
@@ -37,7 +40,10 @@ test('resolveProjectFile prefers configured colors and theme files', async () =>
     themeFile: 'src/theme/theme.ts',
   });
 
-  assert.equal((await resolveProjectFile('colors'))?.fsPath, path.join(root, 'src/theme/colors.ts'));
+  assert.equal(
+    (await resolveProjectFile('colors'))?.fsPath,
+    path.join(root, 'src/theme/colors.ts'),
+  );
   assert.equal((await resolveProjectFile('theme'))?.fsPath, path.join(root, 'src/theme/theme.ts'));
 });
 
@@ -57,8 +63,14 @@ test('themeOnly workflow resolves theme first and next write target follows them
 test('getActiveProjectFiles exposes both files in split projects', async () => {
   const root = makeWorkspace();
   fs.mkdirSync(path.join(root, 'src/theme'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'src/theme/colors.ts'), `export const colors = { primary: '#000000' };`);
-  fs.writeFileSync(path.join(root, 'src/theme/theme.ts'), `export const theme = { colors: { primary: '#FFFFFF' } };`);
+  fs.writeFileSync(
+    path.join(root, 'src/theme/colors.ts'),
+    `export const colors = { primary: '#000000' };`,
+  );
+  fs.writeFileSync(
+    path.join(root, 'src/theme/theme.ts'),
+    `export const theme = { colors: { primary: '#FFFFFF' } };`,
+  );
   setConfig(root, {
     projectWorkflow: 'both',
     colorsFile: 'src/theme/colors.ts',
@@ -74,8 +86,14 @@ test('getActiveProjectFiles exposes both files in split projects', async () => {
 test('getActiveProjectFiles surfaces ThemeProvider files when present', async () => {
   const root = makeWorkspace();
   fs.mkdirSync(path.join(root, 'src/theme'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'src/theme/colors.ts'), `export const colors = { primary: '#000000' };`);
-  fs.writeFileSync(path.join(root, 'src/theme/theme.ts'), `export const theme = { colors: { primary: '#FFFFFF' } };`);
+  fs.writeFileSync(
+    path.join(root, 'src/theme/colors.ts'),
+    `export const colors = { primary: '#000000' };`,
+  );
+  fs.writeFileSync(
+    path.join(root, 'src/theme/theme.ts'),
+    `export const theme = { colors: { primary: '#FFFFFF' } };`,
+  );
   fs.writeFileSync(
     path.join(root, 'src', 'ThemeProvider.tsx'),
     `import { ThemeProvider } from 'styled-components';
@@ -96,8 +114,14 @@ test('getActiveProjectFiles surfaces ThemeProvider files when present', async ()
 test('getProjectSummary and problem hint explain split projects', async () => {
   const root = makeWorkspace();
   fs.mkdirSync(path.join(root, 'src/theme'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'src/theme/colors.ts'), `export const colors = { primary: '#000000' };`);
-  fs.writeFileSync(path.join(root, 'src/theme/theme.ts'), `export const theme = { colors: { primary: '#FFFFFF' } };`);
+  fs.writeFileSync(
+    path.join(root, 'src/theme/colors.ts'),
+    `export const colors = { primary: '#000000' };`,
+  );
+  fs.writeFileSync(
+    path.join(root, 'src/theme/theme.ts'),
+    `export const theme = { colors: { primary: '#FFFFFF' } };`,
+  );
   setConfig(root, {
     projectWorkflow: 'both',
     colorsFile: 'src/theme/colors.ts',

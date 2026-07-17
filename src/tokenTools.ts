@@ -1,9 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import {
-  readColors,
-  renameColorToken,
-} from './colorFile';
+import { readColors, renameColorToken } from './colorFile';
 import { getDefaultDialogUri } from './workspaceUtils';
 import { globToRegExp } from './globUtils';
 import { getColorsIdentifier } from './importUtils';
@@ -134,7 +131,9 @@ export async function showUnusedTokens(): Promise<void> {
   const content = buildUnusedTokenReport(colorsFileUri, unused, total);
   const document = await vscode.workspace.openTextDocument({ content, language: 'markdown' });
   await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
-  vscode.window.showInformationMessage(`Opened unused-token report for the ${describeProjectFileKind(kind)}.`);
+  vscode.window.showInformationMessage(
+    `Opened unused-token report for the ${describeProjectFileKind(kind)}.`,
+  );
 }
 
 export async function findUnusedColors(

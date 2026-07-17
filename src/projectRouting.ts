@@ -64,8 +64,8 @@ export async function getActiveProjectFiles(contextUri?: vscode.Uri): Promise<Ac
 
   return {
     workflow,
-    colorsFile: workflow === 'themeOnly' ? undefined : colorsFile ?? undefined,
-    themeFile: workflow === 'colorsOnly' ? undefined : themeFile ?? undefined,
+    colorsFile: workflow === 'themeOnly' ? undefined : (colorsFile ?? undefined),
+    themeFile: workflow === 'colorsOnly' ? undefined : (themeFile ?? undefined),
     themeProviderFile: themeProviderFile ?? undefined,
   };
 }
@@ -184,9 +184,7 @@ async function detectProjectFile(
 
   const context = getContextUri(contextUri);
   const workspaceFolder = context ? vscode.workspace.getWorkspaceFolder(context) : undefined;
-  const candidates = await findTokenFiles(
-    workspaceFolder ?? vscode.workspace.workspaceFolders[0],
-  );
+  const candidates = await findTokenFiles(workspaceFolder ?? vscode.workspace.workspaceFolders[0]);
   const matches = candidates.filter((candidate) => candidate.kind === kind);
   const chosen = matches[0] ?? candidates.find((candidate) => candidate.kind === 'theme');
   return chosen

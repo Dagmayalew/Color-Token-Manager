@@ -118,11 +118,17 @@ function scoreReusableTokenName(tokenName: string): number {
     score += 8;
   }
 
-  if (/(text|bg|background|surface|border|icon|tint|primary|secondary|muted|inverse)/i.test(tokenName)) {
+  if (
+    /(text|bg|background|surface|border|icon|tint|primary|secondary|muted|inverse)/i.test(tokenName)
+  ) {
     score += 4;
   }
 
-  if (/^(primitive|palette|scale|neutral|gray|grey|primary|secondary|success|warning|danger)\b/i.test(tokenName)) {
+  if (
+    /^(primitive|palette|scale|neutral|gray|grey|primary|secondary|success|warning|danger)\b/i.test(
+      tokenName,
+    )
+  ) {
     score -= 3;
   }
 

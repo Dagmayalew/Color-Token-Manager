@@ -1,10 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import {
-  type ThemeProviderCandidate,
-  type TokenFileCandidate,
-  type TokenFileKind,
-} from './types';
+import { type ThemeProviderCandidate, type TokenFileCandidate, type TokenFileKind } from './types';
 
 // Folder names that are never scanned
 const IGNORED_SEGMENTS = new Set([
@@ -128,7 +124,10 @@ export async function findTokenFiles(
   workspaceFolder: vscode.WorkspaceFolder,
 ): Promise<TokenFileCandidate[]> {
   const excludeGlob = `{${[...IGNORED_SEGMENTS].map((s) => `**/${s}/**`).join(',')}}`;
-  const pattern = new vscode.RelativePattern(workspaceFolder, '**/*.{ts,tsx,js,jsx,json,jsonc,yaml,yml}');
+  const pattern = new vscode.RelativePattern(
+    workspaceFolder,
+    '**/*.{ts,tsx,js,jsx,json,jsonc,yaml,yml}',
+  );
   const files = await vscode.workspace.findFiles(pattern, excludeGlob);
   const candidates: TokenFileCandidate[] = [];
 
@@ -259,7 +258,10 @@ function detectStructuredTokenFileKind(fileText: string): TokenFileKind | undefi
   }
 
   const rootKeys = Object.keys(parsed);
-  if (rootKeys.some((key) => key.toLowerCase() === 'light') && rootKeys.some((key) => key.toLowerCase() === 'dark')) {
+  if (
+    rootKeys.some((key) => key.toLowerCase() === 'light') &&
+    rootKeys.some((key) => key.toLowerCase() === 'dark')
+  ) {
     return 'theme';
   }
 

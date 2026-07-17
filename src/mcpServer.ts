@@ -1,10 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import {
-  normalizeColorValue,
-  readColors,
-  validateColorValue,
-} from './colorFile';
+import { normalizeColorValue, readColors, validateColorValue } from './colorFile';
 import { resolveProjectFile } from './projectRouting';
 import { extractHardcodedColorsFromText, generateTokenName } from './colorExtractor';
 import { buildPreviewForDocument, createPreviewPlanner } from './colorPlan';
@@ -663,7 +659,9 @@ function flattenColors(colors: Awaited<ReturnType<typeof readColors>>): Record<s
 
 async function getActiveColorsFile(contextUri?: vscode.Uri): Promise<vscode.Uri> {
   const resolvedContext = contextUri ?? vscode.window.activeTextEditor?.document.uri;
-  const colorsFileUri = (await resolveProjectFile('colors', resolvedContext)) ?? (await resolveProjectFile('theme', resolvedContext));
+  const colorsFileUri =
+    (await resolveProjectFile('colors', resolvedContext)) ??
+    (await resolveProjectFile('theme', resolvedContext));
   if (!colorsFileUri) {
     throw new Error('No project file is configured for this workspace.');
   }
