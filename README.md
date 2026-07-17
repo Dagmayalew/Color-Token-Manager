@@ -4,7 +4,7 @@ Color Token Manager helps projects manage color tokens from `colors.ts`, `theme.
 
 ## Demo
 
-<video src="resources/demo.mov" controls width="100%"></video>
+<video src="resources/demo.mp4" controls width="100%"></video>
 
 It can:
 

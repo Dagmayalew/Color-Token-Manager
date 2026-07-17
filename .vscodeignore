@@ -13,4 +13,4 @@ eslint.config.mjs
 .mocharc.json
 .prettierrc.json
 .prettierignore
-resources/demo.mov
+resources/demo.mp4
