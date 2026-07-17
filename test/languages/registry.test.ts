@@ -13,6 +13,7 @@ import { javascriptAdapter } from '../../src/languages/javascriptAdapter';
 import { cssAdapter } from '../../src/languages/cssAdapter';
 import { htmlAdapter } from '../../src/languages/htmlAdapter';
 import { svgAdapter, xmlAdapter } from '../../src/languages/registry';
+import { jsonAdapter } from '../../src/languages/previewOnlyAdapters';
 
 test('getAdapterByLanguageId returns correct adapter', () => {
   assert.strictEqual(getAdapterByLanguageId('typescript'), typescriptAdapter);
@@ -21,6 +22,7 @@ test('getAdapterByLanguageId returns correct adapter', () => {
   assert.strictEqual(getAdapterByLanguageId('scss'), cssAdapter);
   assert.strictEqual(getAdapterByLanguageId('less'), cssAdapter);
   assert.strictEqual(getAdapterByLanguageId('html'), htmlAdapter);
+  assert.strictEqual(getAdapterByLanguageId('jsonc'), jsonAdapter);
   assert.strictEqual(getAdapterByLanguageId('unknown-lang'), genericAdapter);
 });
 

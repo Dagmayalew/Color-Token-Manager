@@ -9,8 +9,10 @@ import {
   findExistingTokenByValue,
   getKnownColorsFile,
   getColorType,
+  inspectTokenFile,
   normalizeColorValue,
   readColors,
+  addColorAlias,
   updateColor,
   validateColorValue,
 } from '../src/colorFile';
@@ -154,6 +156,161 @@ export const themeColors = {
 
   assert.equal(colors.find((color) => color.key === 'light.text.primaryText')?.value, '#111111');
   assert.equal(colors.find((color) => color.key === 'dark.background.primaryBg')?.value, '#262626');
+});
+
+test('readColors parses plain JSON token files', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-'));
+  tempDirs.push(dir);
+  const filePath = path.join(dir, 'tokens.json');
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify(
+      {
+        text: {
+          primaryText: '#111111',
+        },
+        background: {
+          primaryBg: '#FFFFFF',
+        },
+      },
+      null,
+      2,
+    ),
+  );
+
+  const colors = await readColors(vscode.Uri.file(filePath) as vscode.Uri);
+  const inspection = await inspectTokenFile(vscode.Uri.file(filePath) as vscode.Uri);
+
+  assert.equal(colors.find((color) => color.key === 'text.primaryText')?.value, '#111111');
+  assert.equal(colors.find((color) => color.key === 'background.primaryBg')?.value, '#FFFFFF');
+  assert.equal(inspection.exportName, 'tokens');
+  assert.equal(inspection.hasThemeShape, true);
+  assert.equal(inspection.nestedTokenCount, 2);
+});
+
+test('readColors parses JSONC token files with comments and trailing commas', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-'));
+  tempDirs.push(dir);
+  const filePath = path.join(dir, 'tokens.jsonc');
+  fs.writeFileSync(
+    filePath,
+    `{
+  // Semantic text tokens
+  "text": {
+    "primaryText": "#111111",
+  },
+  "background": {
+    "primaryBg": "#FFFFFF",
+  },
+}
+`,
+  );
+
+  const colors = await readColors(vscode.Uri.file(filePath) as vscode.Uri);
+  const inspection = await inspectTokenFile(vscode.Uri.file(filePath) as vscode.Uri);
+
+  assert.equal(colors.find((color) => color.key === 'text.primaryText')?.value, '#111111');
+  assert.equal(colors.find((color) => color.key === 'background.primaryBg')?.value, '#FFFFFF');
+  assert.equal(inspection.exportName, 'tokens');
+  assert.equal(inspection.hasThemeShape, true);
+});
+
+test('addColorToken keeps JSON token files valid', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-'));
+  tempDirs.push(dir);
+  const filePath = path.join(dir, 'tokens.json');
+  fs.writeFileSync(filePath, `{\n  "text": {\n    "primary": "#111111"\n  }\n}\n`);
+
+  await addColorToken(vscode.Uri.file(filePath) as vscode.Uri, 'background.primary', '#FFFFFF');
+
+  const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')) as {
+    background?: { primary?: string };
+  };
+  assert.equal(parsed.background?.primary, '#FFFFFF');
+});
+
+test('addColorAlias keeps JSON token aliases as design token references', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-'));
+  tempDirs.push(dir);
+  const filePath = path.join(dir, 'tokens.json');
+  fs.writeFileSync(filePath, `{\n  "primary": "#FF6B00"\n}\n`);
+
+  await addColorAlias(vscode.Uri.file(filePath) as vscode.Uri, 'button.background', 'primary');
+
+  const colors = await readColors(vscode.Uri.file(filePath) as vscode.Uri);
+  const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')) as {
+    button?: { background?: string };
+  };
+
+  assert.equal(parsed.button?.background, '{primary}');
+  assert.equal(colors.find((color) => color.key === 'button.background')?.value, '#FF6B00');
+});
+
+test('readColors parses YAML token files', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-'));
+  tempDirs.push(dir);
+  const filePath = path.join(dir, 'tokens.yaml');
+  fs.writeFileSync(
+    filePath,
+    `# Design tokens
+text:
+  primaryText: "#111111"
+background:
+  primaryBg: '#FFFFFF'
+`,
+  );
+
+  const colors = await readColors(vscode.Uri.file(filePath) as vscode.Uri);
+  const inspection = await inspectTokenFile(vscode.Uri.file(filePath) as vscode.Uri);
+
+  assert.equal(colors.find((color) => color.key === 'text.primaryText')?.value, '#111111');
+  assert.equal(colors.find((color) => color.key === 'background.primaryBg')?.value, '#FFFFFF');
+  assert.equal(inspection.exportName, 'tokens');
+  assert.equal(inspection.hasThemeShape, true);
+});
+
+test('addColorToken keeps YAML token files valid', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-'));
+  tempDirs.push(dir);
+  const filePath = path.join(dir, 'tokens.yml');
+  fs.writeFileSync(filePath, `text:\n  primary: "#111111"\n`);
+
+  await addColorToken(vscode.Uri.file(filePath) as vscode.Uri, 'background.primary', '#FFFFFF');
+
+  const text = fs.readFileSync(filePath, 'utf8');
+  const colors = await readColors(vscode.Uri.file(filePath) as vscode.Uri);
+
+  assert.match(text, /background:\n  primary: "#FFFFFF"/);
+  assert.equal(colors.find((color) => color.key === 'background.primary')?.value, '#FFFFFF');
+});
+
+test('inspectTokenFile recognizes nested React Native theme paths', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'color-token-manager-'));
+  tempDirs.push(dir);
+  const filePath = path.join(dir, 'theme.ts');
+  fs.writeFileSync(
+    filePath,
+    `import { Colors } from '../style';
+export const theme = {
+  text: {
+    primaryText: Colors.BLACK,
+    inverseText: '#FFFFFF',
+  },
+  background: {
+    secondaryBg: Colors.WHITE,
+  },
+} as const;
+`,
+  );
+
+  const inspection = await inspectTokenFile(vscode.Uri.file(filePath) as vscode.Uri);
+
+  assert.equal(inspection.exportName, 'theme');
+  assert.equal(inspection.hasThemeShape, true);
+  assert.equal(inspection.hasTokenShape, true);
+  assert.equal(inspection.referenceTokenCount, 2);
+  assert.ok(inspection.pathSamples.includes('theme.text.primaryText'));
+  assert.ok(inspection.pathSamples.includes('theme.background.secondaryBg'));
 });
 
 test('readColors resolves aliases against the detected export name', async () => {

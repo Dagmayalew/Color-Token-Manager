@@ -207,6 +207,60 @@ test('findTokenFiles detects themeColors.tsx as a token file', async () => {
   assert.ok(candidates.some((c) => c.filePath.endsWith('themeColors.tsx')));
 });
 
+test('findTokenFiles detects JSONC token files', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctm-detect-'));
+  tempDirs.push(dir);
+
+  const themeDir = path.join(dir, 'src', 'theme');
+  fs.mkdirSync(themeDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(themeDir, 'tokens.jsonc'),
+    `{
+      // JSONC design tokens are common in toolchains
+      "text": {
+        "primaryText": "#111111",
+      },
+      "background": {
+        "primaryBg": "#FFFFFF",
+      },
+    }`,
+  );
+
+  (vscode as unknown as { __setWorkspaceRoot(v: string): void }).__setWorkspaceRoot(dir);
+  const folder = vscode.workspace.workspaceFolders![0];
+  const candidates = await findTokenFiles(folder as unknown as WorkspaceFolder);
+  const found = candidates.find((c) => c.filePath.endsWith('tokens.jsonc'));
+
+  assert.ok(found, 'tokens.jsonc should be a candidate');
+  assert.equal(found.kind, 'theme');
+  assert.deepEqual(found.exportNames, ['tokens']);
+});
+
+test('findTokenFiles detects YAML token files', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctm-detect-'));
+  tempDirs.push(dir);
+
+  const themeDir = path.join(dir, 'src', 'theme');
+  fs.mkdirSync(themeDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(themeDir, 'tokens.yaml'),
+    `text:
+  primaryText: "#111111"
+background:
+  primaryBg: "#FFFFFF"
+`,
+  );
+
+  (vscode as unknown as { __setWorkspaceRoot(v: string): void }).__setWorkspaceRoot(dir);
+  const folder = vscode.workspace.workspaceFolders![0];
+  const candidates = await findTokenFiles(folder as unknown as WorkspaceFolder);
+  const found = candidates.find((c) => c.filePath.endsWith('tokens.yaml'));
+
+  assert.ok(found, 'tokens.yaml should be a candidate');
+  assert.equal(found.kind, 'theme');
+  assert.deepEqual(found.exportNames, ['tokens']);
+});
+
 test('findThemeProviderFiles detects provider entry points', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctm-provider-'));
   tempDirs.push(dir);

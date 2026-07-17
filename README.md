@@ -2,6 +2,10 @@
 
 Color Token Manager helps projects manage color tokens from `colors.ts`, `theme.ts`, `themes.ts`, `tokens.ts`, or `designTokens.ts`.
 
+## Demo
+
+<video src="resources/demo.mov" controls width="100%"></video>
+
 It can:
 
 - Set up a workspace

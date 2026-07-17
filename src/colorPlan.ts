@@ -92,7 +92,11 @@ export function createPreviewPlanner(existingColors: AppColor[]): PreviewPlanner
   const tokenByNormalizedValue = new Map<string, string>();
 
   for (const color of existingColors) {
-    tokenByNormalizedValue.set(normalizeColorValue(color.value), color.key);
+    const normalized = normalizeColorValue(color.value);
+    const current = tokenByNormalizedValue.get(normalized);
+    if (!current || scoreReusableTokenName(color.key) > scoreReusableTokenName(current)) {
+      tokenByNormalizedValue.set(normalized, color.key);
+    }
   }
 
   return {
@@ -100,6 +104,29 @@ export function createPreviewPlanner(existingColors: AppColor[]): PreviewPlanner
     knownTokenNames: new Set(existingColors.map((color) => color.key)),
     tokenByNormalizedValue,
   };
+}
+
+function scoreReusableTokenName(tokenName: string): number {
+  const segments = tokenName.split('.');
+  let score = 0;
+
+  if (segments.length > 1) {
+    score += 10;
+  }
+
+  if (/^(text|background|surface|border|icon|tint|shadow)$/i.test(segments[0] ?? '')) {
+    score += 8;
+  }
+
+  if (/(text|bg|background|surface|border|icon|tint|primary|secondary|muted|inverse)/i.test(tokenName)) {
+    score += 4;
+  }
+
+  if (/^(primitive|palette|scale|neutral|gray|grey|primary|secondary|success|warning|danger)\b/i.test(tokenName)) {
+    score -= 3;
+  }
+
+  return score;
 }
 
 export function buildPreviewForDocument(

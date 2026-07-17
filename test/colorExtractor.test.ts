@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 import { extractHardcodedColorsFromText } from '../src/colorExtractor';
-import { getProjectTokenName, shouldCreateAlias } from '../src/colorPlan';
+import { createPreviewPlanner, getProjectTokenName, shouldCreateAlias } from '../src/colorPlan';
 import { buildTokenReference, getReplacementText } from '../src/colorScan';
 import type { AppColor } from '../src/types';
 import { resetColorTokenManagerConfig, setColorTokenManagerConfig } from './helpers/config';
@@ -169,6 +169,15 @@ test('nested color projects keep nested semantic token paths', () => {
 
   assert.equal(getProjectTokenName('text.black', existingColors), 'text.black');
   assert.equal(shouldCreateAlias('black', 'text.black', new Set(['black']), existingColors), true);
+});
+
+test('preview planner prefers semantic nested theme tokens over primitive tokens', () => {
+  const planner = createPreviewPlanner([
+    { key: 'primitive.neutral.black', value: '#000000', type: 'hex' },
+    { key: 'text.primaryText', value: '#000000', type: 'hex' },
+  ]);
+
+  assert.equal(planner.tokenByNormalizedValue.get('#000000'), 'text.primaryText');
 });
 
 // ── buildTokenReference ───────────────────────────────────────────────────────

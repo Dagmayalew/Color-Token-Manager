@@ -140,3 +140,23 @@ test('JS/TS adapters import only the first segment of a nested reference prefix'
   assert.ok(edit, 'expected an import edit');
   assert.equal(edit.newText, "import { theme } from './theme/theme';\n");
 });
+
+test('JS/TS adapters skip imports when the reference object already exists locally', () => {
+  const document = makeDocument(`
+import { useTheme } from '../theme/themeProvider';
+
+const GoBack = () => {
+  const { theme } = useTheme();
+  return { color: '#000000' };
+};
+`);
+
+  assert.deepEqual(
+    typescriptAdapter.buildImportEdit?.({
+      document,
+      tokenFilePath: '../theme/theme',
+      referencePrefix: 'theme.text',
+    }),
+    [],
+  );
+});

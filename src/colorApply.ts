@@ -46,6 +46,7 @@ const PREVIEW_ONLY_EXTENSIONS = new Set([
   '.php',
   '.rb',
   '.json',
+  '.jsonc',
   '.yaml',
   '.yml',
   '.xml',
@@ -831,7 +832,7 @@ async function findSupportedFilesInFolder(
   const prefix = relativeFolder && relativeFolder !== '.' ? `${relativeFolder}/` : '';
   const pattern = new vscode.RelativePattern(
     workspaceFolder,
-    `${prefix}**/*.{ts,tsx,js,jsx,vue,css,scss,less,html,htm,dart,swift,kt,kts,java,go,py,php,rb,json,yaml,yml,xml,svg,md}`,
+    `${prefix}**/*.{ts,tsx,js,jsx,vue,css,scss,less,html,htm,dart,swift,kt,kts,java,go,py,php,rb,json,jsonc,yaml,yml,xml,svg,md}`,
   );
   const files = await vscode.workspace.findFiles(
     pattern,

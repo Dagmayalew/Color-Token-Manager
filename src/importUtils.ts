@@ -111,6 +111,11 @@ export function buildColorsImportEdit(
   const text = document.getText();
   const importRegex = /^import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?/gm;
   let lastImportEnd = 0;
+
+  if (hasLocalBinding(text, identifier)) {
+    return [];
+  }
+
   let match: RegExpExecArray | null;
 
   while ((match = importRegex.exec(text))) {
@@ -152,6 +157,23 @@ export function buildColorsImportEdit(
       lastImportEnd > 0 ? `\n${importText}` : importText,
     ),
   ];
+}
+
+function hasLocalBinding(text: string, identifier: string): boolean {
+  const escaped = escapeRegExp(identifier);
+  const directDeclaration = new RegExp(
+    String.raw`\b(?:const|let|var|function|class)\s+${escaped}\b`,
+  );
+  const destructuredDeclaration = new RegExp(
+    String.raw`\b(?:const|let|var)\s+\{[^}]*\b${escaped}\b[^}]*\}`,
+  );
+  const parameterDeclaration = new RegExp(String.raw`\([^)]*\b${escaped}\b[^)]*\)\s*=>`);
+
+  return (
+    directDeclaration.test(text) ||
+    destructuredDeclaration.test(text) ||
+    parameterDeclaration.test(text)
+  );
 }
 
 export function addColorsImportEdit(

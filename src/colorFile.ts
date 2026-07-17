@@ -9,7 +9,7 @@ import {
 } from './projectRouting';
 
 const TOKEN_FILE_GLOB =
-  '**/{colors,theme,themes,tokens,designTokens,design-tokens,designSystem,design-system}.ts';
+  '**/{colors,theme,themes,tokens,designTokens,design-tokens,designSystem,design-system}.{ts,tsx,js,jsx,json,jsonc,yaml,yml}';
 const EXCLUDED_GLOB = '{**/node_modules/**,**/dist/**,**/build/**,**/ios/**,**/android/**}';
 const SUPPORTED_TOKEN_EXPORT_NAMES = [
   'colors',
@@ -45,6 +45,19 @@ export type ColorsFileTemplateMode =
 type TokenSourceObject = {
   exportName: string;
   object: ParsedObject;
+  format: 'objectLiteral' | 'json' | 'yaml';
+};
+
+export type TokenFileInspection = {
+  exportName: string;
+  colorTokenCount: number;
+  referenceTokenCount: number;
+  nestedTokenCount: number;
+  leafTokenCount: number;
+  rootKeys: string[];
+  pathSamples: string[];
+  hasThemeShape: boolean;
+  hasTokenShape: boolean;
 };
 
 export async function findColorFiles(): Promise<vscode.Uri[]> {
@@ -91,14 +104,14 @@ export async function createColorsFile(
 
 export async function readColors(fileUri: vscode.Uri): Promise<AppColor[]> {
   const text = await readFileText(fileUri);
-  const { exportName, object: colorsObject } = getTokenSourceObject(text, fileUri);
+  const { exportName, object: colorsObject, format } = getTokenSourceObject(text, fileUri);
   const firstTokenByValue = new Map<string, string>();
   const literalColors = new Map<string, AppColor>();
   const aliasTargets = new Map<string, string>();
   const properties = collectColorProperties(colorsObject);
 
   for (const { key, property } of properties) {
-    const value = getStringLiteralText(property.valueText);
+    const value = getTokenStringValue(property.valueText, format);
     if (value !== undefined) {
       const referenceTarget = getDesignTokenReferenceTarget(value);
       if (referenceTarget) {
@@ -157,6 +170,58 @@ export async function readColors(fileUri: vscode.Uri): Promise<AppColor[]> {
   return Array.from(literalColors.values());
 }
 
+export async function inspectTokenFile(fileUri: vscode.Uri): Promise<TokenFileInspection> {
+  const text = await readFileText(fileUri);
+  const { exportName, object, format } = getTokenSourceObject(text, fileUri);
+  const properties = collectColorProperties(object);
+  const rootKeys = object.properties.map((property) => property.key);
+  let colorTokenCount = 0;
+  let referenceTokenCount = 0;
+
+  for (const { property } of properties) {
+    const literal = getTokenStringValue(property.valueText, format);
+    if (literal && (validateColorValue(literal) || getDesignTokenReferenceTarget(literal))) {
+      colorTokenCount++;
+      continue;
+    }
+
+    if (getColorAliasTarget(property.valueText, exportName) || isExternalTokenReference(property.valueText)) {
+      referenceTokenCount++;
+    }
+  }
+
+  const nestedTokenCount = properties.filter(({ key }) => key.includes('.')).length;
+  const normalizedRootKeys = new Set(rootKeys.map((key) => key.toLowerCase()));
+  const hasThemeShape = [
+    'text',
+    'background',
+    'surface',
+    'border',
+    'light',
+    'dark',
+    'colors',
+  ].some((key) => normalizedRootKeys.has(key));
+  const hasTokenShape =
+    colorTokenCount > 0 ||
+    referenceTokenCount > 0 ||
+    nestedTokenCount > 0 ||
+    ['colors', 'theme', 'themes', 'tokens', 'designtokens', 'themecolors'].includes(
+      exportName.toLowerCase(),
+    );
+
+  return {
+    exportName,
+    colorTokenCount,
+    referenceTokenCount,
+    nestedTokenCount,
+    leafTokenCount: properties.length,
+    rootKeys,
+    pathSamples: properties.slice(0, 5).map(({ key }) => `${exportName}.${key}`),
+    hasThemeShape,
+    hasTokenShape,
+  };
+}
+
 export async function detectTokenExportName(fileUri: vscode.Uri): Promise<string> {
   const text = await readFileText(fileUri);
   return getTokenSourceObject(text, fileUri).exportName;
@@ -172,14 +237,24 @@ export async function addColorToken(
   }
 
   const text = await readFileText(fileUri);
-  const { object: colorsObject } = getTokenSourceObject(text, fileUri);
+  const { object: colorsObject, format } = getTokenSourceObject(text, fileUri);
   if (findColorProperty(colorsObject, key)) {
     throw new Error(`Color token "${key}" already exists.`);
   }
 
   await writeFileText(
     fileUri,
-    addNestedPropertyAssignment(text, colorsObject, key, quoteColorValue(value, "'")),
+    format === 'yaml'
+      ? addYamlPropertyAssignment(text, colorsObject, key, quoteColorValue(value, '"'))
+      : addNestedPropertyAssignment(
+          text,
+          colorsObject,
+          key,
+          quoteColorValue(value, format === 'json' ? '"' : "'"),
+          {
+            quoteKeys: format === 'json',
+          },
+        ),
   );
 }
 
@@ -189,7 +264,7 @@ export async function addColorAlias(
   targetKey: string,
 ): Promise<void> {
   const text = await readFileText(fileUri);
-  const { exportName, object: colorsObject } = getTokenSourceObject(text, fileUri);
+  const { exportName, object: colorsObject, format } = getTokenSourceObject(text, fileUri);
 
   if (findColorProperty(colorsObject, key)) {
     throw new Error(`Color token "${key}" already exists.`);
@@ -201,7 +276,15 @@ export async function addColorAlias(
 
   await writeFileText(
     fileUri,
-    addNestedPropertyAssignment(text, colorsObject, key, `${exportName}.${targetKey}`),
+    format === 'yaml'
+      ? addYamlPropertyAssignment(text, colorsObject, key, quoteColorValue(`{${targetKey}}`, '"'))
+      : addNestedPropertyAssignment(
+          text,
+          colorsObject,
+          key,
+          format === 'json' ? quoteColorValue(`{${targetKey}}`, '"') : `${exportName}.${targetKey}`,
+          { quoteKeys: format === 'json' },
+        ),
   );
 }
 
@@ -211,13 +294,13 @@ export async function updateColor(fileUri: vscode.Uri, key: string, value: strin
   }
 
   const text = await readFileText(fileUri);
-  const { object: colorsObject } = getTokenSourceObject(text, fileUri);
+  const { object: colorsObject, format } = getTokenSourceObject(text, fileUri);
   const property = findColorProperty(colorsObject, key);
   if (!property) {
     throw new Error(`Color token "${key}" was not found.`);
   }
 
-  const currentValue = getStringLiteralText(property.valueText);
+  const currentValue = getTokenStringValue(property.valueText, format);
   if (currentValue === undefined || !validateColorValue(currentValue)) {
     throw new Error(`Color token "${key}" does not contain a supported string color value.`);
   }
@@ -243,7 +326,7 @@ export async function renameColorToken(
   }
 
   const text = await readFileText(fileUri);
-  const { object: colorsObject } = getTokenSourceObject(text, fileUri);
+  const { object: colorsObject, format } = getTokenSourceObject(text, fileUri);
   const oldProperty = findColorProperty(colorsObject, oldKey);
   if (!oldProperty) {
     throw new Error(`Color token "${oldKey}" was not found.`);
@@ -258,7 +341,9 @@ export async function renameColorToken(
   const { object: reparsed } = getTokenSourceObject(withoutOldProperty, fileUri);
   await writeFileText(
     fileUri,
-    addNestedPropertyAssignment(withoutOldProperty, reparsed, newKey, initializer),
+    addNestedPropertyAssignment(withoutOldProperty, reparsed, newKey, initializer, {
+      quoteKeys: format === 'json',
+    }),
   );
 }
 
@@ -431,6 +516,16 @@ function getConfiguredTokenExportName(context?: vscode.Uri): string {
 }
 
 function getTokenSourceObject(text: string, context?: vscode.Uri): TokenSourceObject {
+  const yamlSource = getObjectForYamlDocument(text, context);
+  if (yamlSource) {
+    return yamlSource;
+  }
+
+  const jsonSource = getObjectForJsonDocument(text, context);
+  if (jsonSource) {
+    return jsonSource;
+  }
+
   const configuredExportName = getConfiguredTokenExportName(context);
   const configured =
     configuredExportName === 'auto'
@@ -488,7 +583,7 @@ function getObjectForDeclaration(text: string, exportName: string): TokenSourceO
     );
   }
 
-  return { exportName, object: parseObject(text, objectStart) };
+  return { exportName, object: parseObject(text, objectStart), format: 'objectLiteral' };
 }
 
 function getObjectForAnyObjectLiteral(text: string): TokenSourceObject | undefined {
@@ -504,7 +599,139 @@ function getObjectForAnyObjectLiteral(text: string): TokenSourceObject | undefin
     return undefined;
   }
 
-  return { exportName, object: parseObject(text, objectStart) };
+  return { exportName, object: parseObject(text, objectStart), format: 'objectLiteral' };
+}
+
+function getObjectForJsonDocument(text: string, context?: vscode.Uri): TokenSourceObject | undefined {
+  const objectStart = skipWhitespaceAndComments(text, 0);
+  if (text[objectStart] !== '{') {
+    return undefined;
+  }
+
+  const object = parseObject(text, objectStart);
+  const afterObject = skipWhitespaceAndComments(text, object.end + 1);
+  if (afterObject < text.length) {
+    return undefined;
+  }
+
+  return {
+    exportName: getJsonTokenObjectName(context),
+    object,
+    format: 'json',
+  };
+}
+
+function getJsonTokenObjectName(context?: vscode.Uri): string {
+  const basename = context ? path.basename(context.fsPath, path.extname(context.fsPath)) : 'tokens';
+  const normalized = basename.replace(/[^A-Za-z0-9_$]/g, '');
+  if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(normalized)) {
+    return normalized;
+  }
+
+  return 'tokens';
+}
+
+function getObjectForYamlDocument(text: string, context?: vscode.Uri): TokenSourceObject | undefined {
+  if (!context || !/\.ya?ml$/i.test(context.fsPath)) {
+    return undefined;
+  }
+
+  const object = parseYamlObject(text);
+  if (!object.properties.length) {
+    return undefined;
+  }
+
+  return {
+    exportName: getJsonTokenObjectName(context),
+    object,
+    format: 'yaml',
+  };
+}
+
+function parseYamlObject(text: string): ParsedObject {
+  const root: ParsedObject = { start: 0, end: text.length, properties: [] };
+  const stack: Array<{ indent: number; object: ParsedObject }> = [{ indent: -1, object: root }];
+  const lines = text.matchAll(/^.*(?:\n|$)/gm);
+
+  for (const match of lines) {
+    const rawLine = match[0];
+    if (!rawLine) {
+      continue;
+    }
+
+    const lineStart = match.index ?? 0;
+    const lineEnd = lineStart + rawLine.replace(/\n$/, '').length;
+    const content = rawLine.replace(/\r?\n$/, '');
+    if (!content.trim() || content.trimStart().startsWith('#')) {
+      continue;
+    }
+
+    const keyMatch = content.match(/^(\s*)(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_$.-]+))\s*:\s*(.*)$/);
+    if (!keyMatch) {
+      continue;
+    }
+
+    const indent = keyMatch[1].length;
+    const key = keyMatch[2] ?? keyMatch[3] ?? keyMatch[4];
+    const valueText = stripYamlInlineComment(keyMatch[5] ?? '').trim();
+
+    while (stack.length > 1 && indent <= stack[stack.length - 1].indent) {
+      const popped = stack.pop();
+      if (popped) {
+        popped.object.end = lineStart;
+      }
+    }
+
+    const parent = stack[stack.length - 1].object;
+    const valueStart = valueText
+      ? lineStart + content.indexOf(keyMatch[5] ?? '', keyMatch[0].indexOf(':') + 1)
+      : lineEnd;
+    const property: ParsedProperty = {
+      key,
+      propertyStart: lineStart,
+      propertyEnd: lineEnd,
+      valueStart,
+      valueEnd: lineEnd,
+      valueText,
+    };
+
+    if (!valueText) {
+      property.child = { start: lineEnd, end: text.length, properties: [] };
+      stack.push({ indent, object: property.child });
+    }
+
+    parent.properties.push(property);
+  }
+
+  return root;
+}
+
+function stripYamlInlineComment(value: string): string {
+  let quote: string | undefined;
+  for (let index = 0; index < value.length; index++) {
+    const char = value[index];
+    if (quote) {
+      if (char === '\\') {
+        index++;
+        continue;
+      }
+      if (char === quote) {
+        quote = undefined;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (char === '#' && /\s/.test(value[index - 1] ?? ' ')) {
+      return value.slice(0, index);
+    }
+  }
+
+  return value;
 }
 
 function findAssignmentEquals(text: string, start: number): number {
@@ -786,13 +1013,99 @@ function addNestedPropertyAssignment(
   objectLiteral: ParsedObject,
   key: string,
   initializer: string,
+  options: { quoteKeys?: boolean } = {},
 ): string {
   const parts = key.split('.').filter(Boolean);
   if (!parts.length) {
     throw new Error('Color token name cannot be empty.');
   }
 
-  return addPropertyPath(text, objectLiteral, parts, initializer);
+  return addPropertyPath(text, objectLiteral, parts, initializer, options);
+}
+
+function addYamlPropertyAssignment(
+  text: string,
+  objectLiteral: ParsedObject,
+  key: string,
+  initializer: string,
+): string {
+  const parts = key.split('.').filter(Boolean);
+  if (!parts.length) {
+    throw new Error('Color token name cannot be empty.');
+  }
+
+  return addYamlPropertyPath(text, objectLiteral, parts, initializer, 0);
+}
+
+function addYamlPropertyPath(
+  text: string,
+  objectLiteral: ParsedObject,
+  parts: string[],
+  initializer: string,
+  indent: number,
+): string {
+  const [head, ...rest] = parts;
+  const existing = objectLiteral.properties.find((property) => property.key === head);
+
+  if (!rest.length) {
+    return insertYamlLine(text, objectLiteral, indent, `${formatYamlKey(head)}: ${initializer}`);
+  }
+
+  if (existing?.child) {
+    return addYamlPropertyPath(text, existing.child, rest, initializer, indent + 2);
+  }
+
+  if (existing && !existing.child) {
+    throw new Error(
+      `Cannot add nested color token "${parts.join('.')}" because "${head}" is not an object.`,
+    );
+  }
+
+  return insertYamlBlock(
+    text,
+    objectLiteral,
+    indent,
+    createYamlNestedBlock(parts, initializer, indent),
+  );
+}
+
+function insertYamlLine(
+  text: string,
+  objectLiteral: ParsedObject,
+  indent: number,
+  line: string,
+): string {
+  return insertYamlBlock(text, objectLiteral, indent, `${' '.repeat(indent)}${line}\n`);
+}
+
+function insertYamlBlock(
+  text: string,
+  objectLiteral: ParsedObject,
+  indent: number,
+  block: string,
+): string {
+  const insertAt = getYamlInsertOffset(text, objectLiteral);
+  const prefix = insertAt > 0 && text[insertAt - 1] !== '\n' ? '\n' : '';
+  const suffix = text[insertAt] && text[insertAt] !== '\n' && indent === 0 ? '\n' : '';
+  return `${text.slice(0, insertAt)}${prefix}${block}${suffix}${text.slice(insertAt)}`;
+}
+
+function createYamlNestedBlock(parts: string[], initializer: string, indent: number): string {
+  const [head, ...rest] = parts;
+  if (!head) {
+    return '';
+  }
+
+  const currentIndent = ' '.repeat(indent);
+  if (!rest.length) {
+    return `${currentIndent}${formatYamlKey(head)}: ${initializer}\n`;
+  }
+
+  return `${currentIndent}${formatYamlKey(head)}:\n${createYamlNestedBlock(rest, initializer, indent + 2)}`;
+}
+
+function getYamlInsertOffset(text: string, objectLiteral: ParsedObject): number {
+  return objectLiteral.end >= text.length ? text.length : objectLiteral.end;
 }
 
 function addPropertyPath(
@@ -800,10 +1113,11 @@ function addPropertyPath(
   objectLiteral: ParsedObject,
   parts: string[],
   initializer: string,
+  options: { quoteKeys?: boolean },
 ): string {
   const [head, ...rest] = parts;
   if (!rest.length) {
-    return insertProperty(text, objectLiteral, head, initializer);
+    return insertProperty(text, objectLiteral, head, initializer, options);
   }
 
   const existing = objectLiteral.properties.find((property) => property.key === head);
@@ -813,14 +1127,15 @@ function addPropertyPath(
         `Cannot add nested color token "${parts.join('.')}" because "${head}" is not an object.`,
       );
     }
-    return addPropertyPath(text, existing.child, rest, initializer);
+    return addPropertyPath(text, existing.child, rest, initializer, options);
   }
 
   return insertProperty(
     text,
     objectLiteral,
     head,
-    createNestedInitializer(text, objectLiteral, rest, initializer),
+    createNestedInitializer(text, objectLiteral, rest, initializer, options),
+    options,
   );
 }
 
@@ -829,6 +1144,7 @@ function insertProperty(
   objectLiteral: ParsedObject,
   key: string,
   initializer: string,
+  options: { quoteKeys?: boolean } = {},
 ): string {
   const objectIndent = getLineIndent(text, objectLiteral.start);
   const propertyIndent = `${objectIndent}  `;
@@ -837,7 +1153,8 @@ function insertProperty(
   const needsComma = Boolean(
     lastProperty && !hasTrailingCommaAfterProperty(text, lastProperty, insertAt),
   );
-  const propertyText = `${needsComma ? ',' : ''}\n${propertyIndent}${formatPropertyName(key)}: ${indentInitializer(initializer, propertyIndent)},\n${objectIndent}`;
+  const trailingComma = options.quoteKeys ? '' : ',';
+  const propertyText = `${needsComma ? ',' : ''}\n${propertyIndent}${formatPropertyName(key, options)}: ${indentInitializer(initializer, propertyIndent)}${trailingComma}\n${objectIndent}`;
 
   return `${text.slice(0, insertAt)}${propertyText}${text.slice(insertAt)}`;
 }
@@ -876,15 +1193,17 @@ function createNestedInitializer(
   objectLiteral: ParsedObject,
   parts: string[],
   initializer: string,
+  options: { quoteKeys?: boolean },
 ): string {
   const objectIndent = getLineIndent(text, objectLiteral.start);
-  return createNestedInitializerFromIndent(parts, initializer, `${objectIndent}  `);
+  return createNestedInitializerFromIndent(parts, initializer, `${objectIndent}  `, options);
 }
 
 function createNestedInitializerFromIndent(
   parts: string[],
   initializer: string,
   indent: string,
+  options: { quoteKeys?: boolean } = {},
 ): string {
   const [head, ...rest] = parts;
   if (!head) {
@@ -892,11 +1211,12 @@ function createNestedInitializerFromIndent(
   }
 
   const childIndent = `${indent}  `;
+  const trailingComma = options.quoteKeys ? '' : ',';
   if (!rest.length) {
-    return `{\n${childIndent}${formatPropertyName(head)}: ${initializer},\n${indent}}`;
+    return `{\n${childIndent}${formatPropertyName(head, options)}: ${initializer}${trailingComma}\n${indent}}`;
   }
 
-  return `{\n${childIndent}${formatPropertyName(head)}: ${createNestedInitializerFromIndent(rest, initializer, childIndent)},\n${indent}}`;
+  return `{\n${childIndent}${formatPropertyName(head, options)}: ${createNestedInitializerFromIndent(rest, initializer, childIndent, options)}${trailingComma}\n${indent}}`;
 }
 
 function indentInitializer(initializer: string, propertyIndent: string): string {
@@ -944,6 +1264,27 @@ function getStringLiteralText(valueText: string): string | undefined {
   return unescapeStringContent(trimmed.slice(1, -1));
 }
 
+function getTokenStringValue(
+  valueText: string,
+  format: TokenSourceObject['format'],
+): string | undefined {
+  const literal = getStringLiteralText(valueText);
+  if (literal !== undefined) {
+    return literal;
+  }
+
+  if (format !== 'yaml') {
+    return undefined;
+  }
+
+  const trimmed = valueText.trim();
+  if (!trimmed || /^[\[{]/.test(trimmed)) {
+    return undefined;
+  }
+
+  return trimmed;
+}
+
 function getColorAliasTarget(valueText: string, exportName: string): string | undefined {
   const match = valueText
     .trim()
@@ -955,6 +1296,12 @@ function getColorAliasTarget(valueText: string, exportName: string): string | un
   }
 
   return match[1] === exportName ? match[2] : undefined;
+}
+
+function isExternalTokenReference(valueText: string): boolean {
+  return /^[A-Za-z_$][A-Za-z0-9_$]*\.[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(
+    valueText.trim(),
+  );
 }
 
 function getDesignTokenReferenceTarget(value: string): string | undefined {
@@ -981,8 +1328,16 @@ function unescapeStringContent(value: string): string {
   return value.replace(/\\(['"`\\])/g, '$1');
 }
 
-function formatPropertyName(name: string): string {
+function formatPropertyName(name: string, options: { quoteKeys?: boolean } = {}): string {
+  if (options.quoteKeys) {
+    return `"${escapeForQuotedString(name, '"')}"`;
+  }
+
   return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) ? name : `'${escapeForQuotedString(name, "'")}'`;
+}
+
+function formatYamlKey(name: string): string {
+  return /^[A-Za-z0-9_$.-]+$/.test(name) ? name : `"${escapeForQuotedString(name, '"')}"`;
 }
 
 function escapeRegExp(value: string): string {

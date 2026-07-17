@@ -148,9 +148,9 @@ export const rubyAdapter: LanguageAdapter = {
 
 export const jsonAdapter: LanguageAdapter = {
   id: 'json',
-  displayName: 'JSON',
-  languageIds: ['json'],
-  extensions: ['.json'],
+  displayName: 'JSON / JSONC',
+  languageIds: ['json', 'jsonc'],
+  extensions: ['.json', '.jsonc'],
   canScan: true,
   canReplace: false,
   colorPatterns: [new RegExp(COLOR_VALUE_PATTERN, 'gi')],
