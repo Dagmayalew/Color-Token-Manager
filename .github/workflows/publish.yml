@@ -19,18 +19,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Package extension
-        run: npm run package
-
       - name: Publish to VS Code Marketplace
         uses: HaaLeo/publish-vscode-extension@v2
         with:
           pat: ${{ secrets.VSCODE_MARKETPLACE_TOKEN }}
-          extensionFile: ${{ github.workspace }}/*.vsix
+          packagePath: .
 
       - name: Publish to Open VSX
         uses: HaaLeo/publish-vscode-extension@v2
         with:
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
-          extensionFile: ${{ github.workspace }}/*.vsix
+          packagePath: .
           registry: https://open-vsx.org
