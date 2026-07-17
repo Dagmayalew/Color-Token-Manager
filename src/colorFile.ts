@@ -1278,7 +1278,7 @@ function getTokenStringValue(
   }
 
   const trimmed = valueText.trim();
-  if (!trimmed || /^[\[{]/.test(trimmed)) {
+  if (!trimmed || /^[[{]/.test(trimmed)) {
     return undefined;
   }
 

@@ -280,7 +280,7 @@ test('addColorToken keeps YAML token files valid', async () => {
   const text = fs.readFileSync(filePath, 'utf8');
   const colors = await readColors(vscode.Uri.file(filePath) as vscode.Uri);
 
-  assert.match(text, /background:\n  primary: "#FFFFFF"/);
+  assert.match(text, /background:\n {2}primary: "#FFFFFF"/);
   assert.equal(colors.find((color) => color.key === 'background.primary')?.value, '#FFFFFF');
 });
 

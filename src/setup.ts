@@ -92,7 +92,7 @@ export async function runSetupWizard(
 async function chooseSetup(
   workspaceFolder: vscode.WorkspaceFolder,
   contextUri?: vscode.Uri,
-  preset?: 'colors' | 'theme',
+  _preset?: 'colors' | 'theme',
 ): Promise<ColorsFileSelection | undefined> {
   // Find existing token/theme files in the workspace
   let detectedFiles: vscode.Uri[] = [];

@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 test('buildDesignSystemHealthDashboard computes a bounded score and issues', async () => {
-  const root = setupWorkspace();
+  setupWorkspace();
   const dashboard = await buildDesignSystemHealthDashboard();
 
   assert.ok(dashboard.score >= 0 && dashboard.score <= 100);

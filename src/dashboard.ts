@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getActiveProjectFiles, getProjectSummary } from './projectRouting';
+import { getProjectSummary } from './projectRouting';
 import { buildThemeAuditReport, type ThemeAuditReport } from './themeAudit';
 import { readColors } from './colorFile';
 import { globToRegExp } from './globUtils';

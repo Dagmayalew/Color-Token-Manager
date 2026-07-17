@@ -1,8 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import {
-  getConfiguredColorsFile,
-  getConfiguredThemeFile,
   normalizeColorValue,
   readColors,
   validateColorValue,
